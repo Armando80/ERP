@@ -1,0 +1,134 @@
+{% load static %} <!-- OBLIGATORIO: Carga el gestor de estáticos de Django -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ERP Decorlata{% endblock %}</title>
+    
+    <!-- Bootstrap v5.2.3 CSS -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
+    <!-- HTMX -->
+    <script src="https://unpkg.com"></script>
+
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --primary-dark: #1e293b; /* Azul pizarra sobrio */
+            --bg-light: #f8fafc;
+        }
+        body {
+            background-color: var(--bg-light);
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background-color: var(--primary-dark);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link {
+            color: #94a3b8;
+            padding: 0.8rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 0.375rem;
+            margin: 0.2rem 0.8rem;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        .main-wrapper {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .top-navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            height: 60px;
+        }
+        .content-container {
+            padding: 1.8rem;
+            flex-grow: 1;
+        }
+        /* Ajuste Responsivo para pantallas pequeñas */
+        @media (max-width: 991.98px) {
+            .sidebar { margin-left: calc(-1 * var(--sidebar-width)); }
+            .sidebar.show { margin-left: 0; }
+            .main-wrapper { margin-left: 0; }
+        }
+    </style>
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    <!-- SIDEBAR PERSISTENTE -->
+    <nav class="sidebar d-flex flex-column" id="sidebarMenu">
+        <!-- Bloque de Identidad Corporativa con Logotipo -->
+        <div class="p-3 text-center border-bottom border-secondary border-opacity-25 bg-white">
+            <img src="{% static 'general/img/logo_decorlata.png' %}" alt="Decorlata" class="img-fluid" style="max-height: 55px; width: auto;">
+        </div>
+        
+        <div class="nav flex-column mt-3 flex-grow-1">
+            <a href="{% url 'general:dashboard' %}" class="nav-link active">
+                <i class="bi bi-speedometer2"></i> Inicio / General
+            </a>
+            <hr class="text-secondary mx-3 my-2 opacity-25">
+            <a href="#" class="nav-link"><i class="bi bi-box-seam"></i> Inventarios</a>
+            <a href="#" class="nav-link"><i class="bi bi-cart3"></i> Compras</a>
+            <a href="#" class="nav-link"><i class="bi bi-currency-dollar"></i> Ventas y Facturas</a>
+            <a href="#" class="nav-link"><i class="bi bi-gear-wide-connected"></i> Producción</a>
+        </div>
+
+        <div class="p-3 border-top border-secondary border-opacity-25">
+            <div class="d-flex align-items-center text-white">
+                <i class="bi bi-person-circle fs-4 me-2 text-muted"></i>
+                <div class="overflow-hidden">
+                    <p class="mb-0 small fw-bold text-truncate">{{ user.username }}</p>
+                    <a href="/admin/logout/" class="text-decoration-none text-muted small">Cerrar Sesión</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ENVOLTORIO PRINCIPAL -->
+    <div class="main-wrapper">
+        <!-- NAVBAR SUPERIOR -->
+        <header class="top-navbar d-flex align-items-center justify-content-between px-4">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button" onclick="document.getElementById('sidebarMenu').classList.toggle('show')">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <!-- Logotipo secundario solo visible en la barra superior cuando estás en móvil -->
+                <img src="{% static 'general/img/logo_decorlata.png' %}" alt="Decorlata" class="img-fluid d-lg-none" style="max-height: 30px;">
+                <span class="text-secondary fw-semibold d-none d-lg-inline">Decorlata S.A. de C.V. — Sistema de Control Interno</span>
+            </div>
+            
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span class="badge bg-light text-dark border"><i class="bi bi-clock me-1"></i> {% now "d/M/Y" %}</span>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">México</span>
+            </div>
+        </header>
+
+        <!-- CONTENEDOR DE CONTENIDO DINÁMICO -->
+        <main class="content-container" id="main-content">
+            {% block content %}
+            <!-- Aquí Django e HTMX inyectarán las pantallas de los módulos -->
+            {% endblock %}
+        </main>
+    </div>
+
+    <!-- Bootstrap v5.2.3 JS Bundle -->
+    <script src="https://jsdelivr.net"></script>
+</body>
+</html>

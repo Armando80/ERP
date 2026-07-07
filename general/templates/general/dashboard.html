@@ -1,0 +1,120 @@
+{% extends 'general/base.html' %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="fw-bold text-dark mb-1">Métricas Globales</h2>
+        <p class="text-muted mb-0">Resumen operativo del sistema integrado.</p>
+    </div>
+</div>
+
+<!-- SECCIÓN: TIPOS DE CAMBIO OFICIALES -->
+<h5 class="text-secondary fw-semibold mb-3"><i class="bi bi-currency-exchange me-2"></i>Tipo de Cambio del Día (Frente al MXN)</h5>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm py-2 px-3 border-start border-primary border-4">
+            <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1 small fw-bold">DÓLAR AMERICANO</h6>
+                    <h3 class="mb-0 fw-bold text-dark">$19.42 <small class="fs-6 text-muted">MXN</small></h3>
+                </div>
+                <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary"><i class="bi bi-currency-dollar fs-4"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm py-2 px-3 border-start border-warning border-4">
+            <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1 small fw-bold">EURO ZONA</h6>
+                    <h3 class="mb-0 fw-bold text-dark">$21.15 <small class="fs-6 text-muted">MXN</small></h3>
+                </div>
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning"><i class="bi bi-currency-euro fs-4"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm py-2 px-3 border-start border-success border-4">
+            <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1 small fw-bold">MONEDA LOCAL</h6>
+                    <h3 class="mb-0 fw-bold text-dark">1.0000 <small class="fs-6 text-muted">MXN</small></h3>
+                </div>
+                <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success"><i class="bi bi-cash-stack fs-4"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECCIÓN: OPERACIONES Y TABLAS COMPLEJAS -->
+<div class="row g-4">
+    <!-- Alertas y Órdenes Pendientes -->
+    <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold text-dark mb-0"><i class="bi bi-list-task me-2 text-danger"></i>Órdenes de Producción Pendientes</h5>
+                <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3">Alta Prioridad</span>
+            </div>
+            <div class="card-body px-4 pb-4">
+                <div class="table-responsive mt-3">
+                    <!-- Clase .table inmediata solicitada -->
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light text-muted small">
+                            <tr>
+                                <th>Folio OP</th>
+                                <th>Producto / SKU</th>
+                                <th>Cantidad</th>
+                                <th>Fecha Límite</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-secondary small">
+                            <tr>
+                                <td class="fw-bold text-primary">#OP-2026-004</td>
+                                <td>Envase Metálico C26 / <code class="text-dark">EM-C26</code></td>
+                                <td>5,000 Pzas</td>
+                                <td>10/Jul/2026</td>
+                                <td><span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> En espera de MP</span></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold text-primary">#OP-2026-005</td>
+                                <td>Tapa de Aluminio Litografiada / <code class="text-dark">TA-LIT</code></td>
+                                <td>12,500 Pzas</td>
+                                <td>14/Jul/2026</td>
+                                <td><span class="badge bg-info text-dark"><i class="bi bi-play-fill"></i> En Proceso</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas de Stock Crítico -->
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 pt-4 px-4">
+                <h5 class="fw-bold text-dark mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Alertas de Almacén</h5>
+            </div>
+            <div class="card-body px-4">
+                <div class="d-flex flex-column gap-3 mt-2">
+                    <div class="p-3 bg-light rounded-3 border-start border-danger border-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1 fw-bold small text-dark">Barniz Epóxico (Materia Prima)</h6>
+                            <small class="text-muted">Stock actual: 45 Lts | Mínimo: 100 Lts</small>
+                        </div>
+                        <span class="badge bg-danger rounded-pill">Comprar Ya</span>
+                    </div>
+                    <div class="p-3 bg-light rounded-3 border-start border-warning border-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1 fw-bold small text-dark">Lámina de Hojalata 0.20mm</h6>
+                            <small class="text-muted">Stock actual: 210 Pzas | Mínimo: 200 Pzas</small>
+                        </div>
+                        <span class="badge bg-warning text-dark rounded-pill">Por Agotarse</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
