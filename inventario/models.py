@@ -61,10 +61,10 @@ class Producto(models.Model):
     # Costo se rastrea en USD/EUR, pero la venta suele ser en MXN o USD.
     # Moneda Base de Costo y Venta son requerimientos de Fase 2.
     moneda_base_costo = models.ForeignKey(
-        Moneda, on_delete=models.PROTECT, related_name='productos_costo', help_text="Moneda en la que se rastrea el costo promedio"
+        Moneda, on_delete=models.PROTECT, related_name='productos_costo', default=1, help_text="Moneda en la que se rastrea el costo promedio"
     )
     moneda_base_venta = models.ForeignKey(
-        Moneda, on_delete=models.PROTECT, related_name='productos_venta', help_text="Moneda de referencia para precios de venta"
+        Moneda, on_delete=models.PROTECT, related_name='productos_venta', default=1, help_text="Moneda de referencia para precios de venta"
     )
 
     costo_promedio_mxn = models.DecimalField(
