@@ -61,10 +61,10 @@ class Producto(models.Model):
     # Costo se rastrea en USD/EUR, pero la venta suele ser en MXN o USD.
     # Moneda Base de Costo y Venta son requerimientos de Fase 2.
     moneda_base_costo = models.ForeignKey(
-        Moneda, on_delete=models.PROTECT, related_name='productos_costo', default=1, help_text="Moneda en la que se rastrea el costo promedio"
+        Moneda, on_delete=models.PROTECT, related_name='productos_costo', help_text="Moneda en la que se rastrea el costo promedio"
     )
     moneda_base_venta = models.ForeignKey(
-        Moneda, on_delete=models.PROTECT, related_name='productos_venta', default=1, help_text="Moneda de referencia para precios de venta"
+        Moneda, on_delete=models.PROTECT, related_name='productos_venta', help_text="Moneda de referencia para precios de venta"
     )
 
     costo_promedio_mxn = models.DecimalField(
@@ -86,8 +86,14 @@ class Stock(models.Model):
     cantidad = models.DecimalField(
         max_digits=18, decimal_places=6, default=Decimal('0.000000'), validators=[MinValueValidator(Decimal('0.000000'))]
     )
+    cantidad_reservada = models.DecimalField(
+        max_digits=18, decimal_places=6, default=Decimal('0.000000'),
+        help_text="Stock apartado para Órdenes de Producción o Pedidos de Venta"
+    )
     ubicacion_especifica = models.CharField(max_length=50, blank=True, null=True, help_text="Ej: Pasillo A, Estante 4")
     stock_minimo = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal('0.000000'), help_text="Alerta de stock mínimo")
+    
+    fecha_ultima_actualizacion = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Existencia (Stock)"
@@ -95,8 +101,13 @@ class Stock(models.Model):
         # Garantiza que solo haya un registro de stock por producto por bodega
         unique_together = ('producto', 'bodega')
 
+    @property
+    def cantidad_disponible(self):
+        """Retorna el stock físico menos el stock que ya está comprometido."""
+        return self.cantidad - self.cantidad_reservada
+
     def __str__(self):
-        return f"{self.producto.sku} en {self.bodega.nombre} ({self.cantidad})"
+        return f"{self.producto.sku} en {self.bodega.nombre} ({self.cantidad} disp: {self.cantidad_disponible})"
 
 
 class MovimientoInventario(models.Model):
@@ -123,11 +134,26 @@ class MovimientoInventario(models.Model):
     tipo_movimiento = models.CharField(max_length=1, choices=TIPO_MOVIMIENTO_CHOICES)
     cantidad = models.DecimalField(max_digits=18, decimal_places=6)
     
-    # Costo asociado al movimiento (crucial para recalcular costo promedio)
-    # Este costo debe estar en MXN, capturado al momento del movimiento.
-    # Si viene de Compras (Fase 3), se convierte usando TipoCambio del día de la OC.
+    # Trazabilidad Industrial (Lotes y Caducidades)
+    lote = models.CharField(max_length=50, blank=True, null=True, help_text="Número de Lote (crítico para Químicos/Componentes)")
+    fecha_caducidad = models.DateField(blank=True, null=True, help_text="Fecha de caducidad aplicable según el lote")
+    
+    # Costo asociado al movimiento
+    moneda_original = models.ForeignKey(
+        Moneda, on_delete=models.PROTECT, blank=True, null=True,
+        help_text="Moneda original de la transacción (Ej: USD en compra de válvulas)"
+    )
+    costo_unitario_original = models.DecimalField(
+        max_digits=18, decimal_places=6, blank=True, null=True,
+        help_text="Costo en la moneda de origen al momento del movimiento"
+    )
+    tipo_cambio_aplicado = models.DecimalField(
+        max_digits=18, decimal_places=6, default=Decimal('1.000000'),
+        help_text="Tipo de cambio del DOF aplicado ese día"
+    )
     costo_unitario_mxn_capturado = models.DecimalField(
-        max_digits=18, decimal_places=6, default=Decimal('0.000000'), help_text="Costo unitario en MXN al momento del movimiento"
+        max_digits=18, decimal_places=6, default=Decimal('0.000000'), 
+        help_text="Costo resultante en MXN integrado a la contabilidad"
     )
 
     # Referencia cruzada (vinculará OC de Compras (Fase 3) o OP de Producción (Fase 5))
