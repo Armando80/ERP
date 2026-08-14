@@ -4,6 +4,7 @@
 from django.db import models
 from decimal import Decimal
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from general.models import Moneda, TipoCambio  # Integración crítica de la Fase 1
 
 # --- Definición de Catálogos ---
@@ -92,7 +93,7 @@ class Stock(models.Model):
     )
     ubicacion_especifica = models.CharField(max_length=50, blank=True, null=True, help_text="Ej: Pasillo A, Estante 4")
     stock_minimo = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal('0.000000'), help_text="Alerta de stock mínimo")
-    
+
     fecha_ultima_actualizacion = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -166,5 +167,33 @@ class MovimientoInventario(models.Model):
         verbose_name_plural = "Movimientos de Inventario (Kardex)"
         ordering = ['-fecha'] # Ordenar por fecha descendente
 
-    def __str__(self):
-        return f"{self.fecha} - {self.producto.sku} ({self.get_tipo_movimiento_display()})"
+    def __str__(self): return f"{self.fecha.strftime('%Y-%m-%d')} - {self.producto.sku} ({self.tipo_movimiento})"
+
+    # --- VALIDACIÓN CRÍTICA EN ADMINISTRADOR ---
+    # Esto arrojará errores rojos bonitos en el Admin si el usuario intenta hacer algo imposible
+    def clean(self):
+        super().clean()
+
+        if self.tipo_movimiento == self.ENTRADA:
+            if not self.bodega_destino:
+                raise ValidationError({'bodega_destino': 'Una Entrada obligatoriamente requiere una Bodega de Destino.'})
+
+        elif self.tipo_movimiento == self.SALIDA:
+            if not self.bodega_origen:
+                raise ValidationError({'bodega_origen': 'Una Salida obligatoriamente requiere una Bodega de Origen.'})
+            if self.producto and self.bodega_origen:
+                stock = Stock.objects.filter(producto=self.producto, bodega=self.bodega_origen).first()
+                disponible = stock.cantidad_disponible if stock else Decimal('0')
+                if self.cantidad > disponible:
+                    raise ValidationError({'cantidad': f'Stock físico insuficiente. Solo tienes {disponible} disponibles en esta bodega.'})
+
+        elif self.tipo_movimiento == self.TRANSFERENCIA:
+            if not self.bodega_origen or not self.bodega_destino:
+                raise ValidationError('Una Transferencia requiere Bodega de Origen y de Destino.')
+            if self.bodega_origen == self.bodega_destino:
+                raise ValidationError({'bodega_destino': 'La bodega destino no puede ser la misma que la de origen.'})
+            if self.producto and self.bodega_origen:
+                stock = Stock.objects.filter(producto=self.producto, bodega=self.bodega_origen).first()
+                disponible = stock.cantidad_disponible if stock else Decimal('0')
+                if self.cantidad > disponible:
+                    raise ValidationError({'cantidad': f'Stock insuficiente en bodega de origen para transferir. Tienes {disponible}.'})
