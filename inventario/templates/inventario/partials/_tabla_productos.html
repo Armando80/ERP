@@ -1,0 +1,92 @@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">SKU</th>
+                        <th>Nombre del Producto</th>
+                        <th>Clasificación</th>
+                        <th>U.M.</th>
+                        <th>Costo Promedio</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary small">
+                    {% for producto in productos %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark">{{ producto.sku }}</td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span class="fw-semibold text-dark">{{ producto.nombre }}</span>
+                                <span class="text-muted" style="font-size: 0.75rem;">{{ producto.descripcion|truncatechars:45|default:"Sin descripción" }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if producto.tipo == 'MP' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">Materia Prima</span>
+                            {% elif producto.tipo == 'CP' %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Componente</span>
+                            {% else %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Prod. Terminado</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ producto.unidad_medida.codigo }}</td>
+                        <td>
+                            <span class="fw-semibold text-dark">${{ producto.costo_promedio_mxn|floatformat:4 }}</span>
+                            <small class="text-muted">MXN</small>
+                        </td>
+                        <td class="text-end pe-4">
+                            <!-- Botón Ver (Cualquier usuario logueado) -->
+                            <button class="btn btn-sm btn-light text-primary border shadow-sm" 
+                                    hx-get="{% url 'inventario:producto_detalle' producto.id %}" 
+                                    hx-target="#offcanvas-content"
+                                    data-bs-toggle="offcanvas" 
+                                    data-bs-target="#offcanvasProducto"
+                                    title="Ver Detalles">
+                                <i class="bi bi-eye"></i>
+                            </button>
+
+                            <!-- Botón Editar (Solo usuarios con permisos) -->
+                            {% if perms.inventario.change_producto %}
+                            <button class="btn btn-sm btn-light text-warning border shadow-sm ms-1" 
+                                    hx-get="{% url 'inventario:producto_editar' producto.id %}" 
+                                    hx-target="#offcanvas-content"
+                                    data-bs-toggle="offcanvas" 
+                                    data-bs-target="#offcanvasProducto"
+                                    title="Editar Producto">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <p class="mb-0">No se encontraron productos que coincidan con la búsqueda.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Paginación (Opcional, manejada por Django si usas ListView) -->
+{% if is_paginated %}
+<div class="d-flex justify-content-between align-items-center mt-3 px-2">
+    <small class="text-muted">Mostrando página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</small>
+    <ul class="pagination pagination-sm mb-0 shadow-sm">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link text-dark" href="#" hx-get="?page={{ page_obj.previous_page_number }}" hx-target="#tabla-container">Anterior</a></li>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link text-dark" href="#" hx-get="?page={{ page_obj.next_page_number }}" hx-target="#tabla-container">Siguiente</a></li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
