@@ -1,0 +1,100 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Catálogo de Productos | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Inventarios</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Catálogo de Productos</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">Catálogo de Productos</h2>
+        <p class="text-muted mb-0 small">Gestión de materias primas, componentes y productos terminados.</p>
+    </div>
+    
+    <div>
+        {% if perms.inventario.add_producto %}
+        <!-- Este botón usa HTMX para cargar el formulario vacío en el Offcanvas -->
+        <button class="btn btn-primary px-4 shadow-sm" 
+                hx-get="{% url 'inventario:producto_crear' %}" 
+                hx-target="#offcanvas-content"
+                data-bs-toggle="offcanvas" 
+                data-bs-target="#offcanvasProducto">
+            <i class="bi bi-plus-lg me-2"></i> Nuevo Producto
+        </button>
+        {% endif %}
+        <button class="btn btn-outline-secondary shadow-sm ms-2" title="Exportar a Excel">
+            <i class="bi bi-file-earmark-excel"></i>
+        </button>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        <div class="row g-3 align-items-center">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <!-- Buscador en tiempo real con HTMX -->
+                    <input type="text" 
+                           class="form-control border-start-0 ps-0" 
+                           placeholder="Buscar por SKU, Nombre o Tipo..."
+                           name="q"
+                           hx-get="{% url 'inventario:producto_lista_htmx' %}"
+                           hx-trigger="keyup changed delay:400ms, search"
+                           hx-target="#tabla-container"
+                           hx-indicator="#loading-indicator">
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-8 d-flex justify-content-md-end gap-2">
+                <select class="form-select w-auto text-muted small" name="tipo"
+                        hx-get="{% url 'inventario:producto_lista_htmx' %}"
+                        hx-trigger="change"
+                        hx-target="#tabla-container"
+                        hx-include="[name='q']">
+                    <option value="">Todos los Tipos</option>
+                    <option value="MP">Materia Prima</option>
+                    <option value="CP">Componente</option>
+                    <option value="PT">Producto Terminado</option>
+                </select>
+                <!-- Indicador de carga de HTMX -->
+                <div id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-primary my-auto" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contenedor dinámico de la tabla. HTMX inyectará _tabla_productos.html aquí -->
+<div id="tabla-container">
+    {% include 'inventario/partials/_tabla_productos.html' %}
+</div>
+
+<!-- Offcanvas (Panel lateral) para ver/editar productos sin salir de la pantalla -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasProducto" aria-labelledby="offcanvasProductoLabel" style="width: 450px;">
+    <div class="offcanvas-header border-bottom bg-light">
+        <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasProductoLabel">Detalle de Producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body" id="offcanvas-content">
+        <!-- El contenido del formulario se carga aquí vía HTMX -->
+        <div class="text-center mt-5 text-muted">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <p>Cargando información...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Estilo extra para el indicador de HTMX -->
+<style>
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline-block; }
+    .htmx-request.htmx-indicator { display: inline-block; }
+</style>
+{% endblock %}
