@@ -1,0 +1,92 @@
+<!-- Este formulario se procesa vía HTMX y actualiza la lista principal al guardarse exitosamente -->
+<form hx-post="{% if producto.id %}{% url 'inventario:producto_editar' producto.id %}{% else %}{% url 'inventario:producto_crear' %}{% endif %}" 
+      hx-target="#offcanvas-content" 
+      hx-swap="innerHTML"
+      class="needs-validation">
+    {% csrf_token %}
+    
+    <!-- Mostrar errores generales del formulario si existen -->
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger p-2 small border-0 shadow-sm">
+        {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+
+    <h6 class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-2">Identificación</h6>
+    
+    <div class="mb-3">
+        <label for="{{ form.sku.id_for_label }}" class="form-label small fw-semibold text-dark">Código SKU <span class="text-danger">*</span></label>
+        {{ form.sku }} <!-- Renderiza el widget de Django (Asegúrate de agregar la clase 'form-control form-control-sm' en forms.py) -->
+        {% if form.sku.errors %}<div class="text-danger small mt-1">{{ form.sku.errors }}</div>{% endif %}
+        <div class="form-text" style="font-size: 0.75rem;">Debe ser un código único y en mayúsculas.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="{{ form.nombre.id_for_label }}" class="form-label small fw-semibold text-dark">Nombre del Producto <span class="text-danger">*</span></label>
+        {{ form.nombre }}
+        {% if form.nombre.errors %}<div class="text-danger small mt-1">{{ form.nombre.errors }}</div>{% endif %}
+    </div>
+
+    <div class="mb-4">
+        <label for="{{ form.descripcion.id_for_label }}" class="form-label small fw-semibold text-dark">Descripción (Opcional)</label>
+        {{ form.descripcion }}
+    </div>
+
+    <h6 class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-2">Clasificación y Medida</h6>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label for="{{ form.tipo.id_for_label }}" class="form-label small fw-semibold text-dark">Tipo <span class="text-danger">*</span></label>
+            {{ form.tipo }}
+        </div>
+        <div class="col-md-6">
+            <label for="{{ form.unidad_medida.id_for_label }}" class="form-label small fw-semibold text-dark">U.M. <span class="text-danger">*</span></label>
+            {{ form.unidad_medida }}
+        </div>
+    </div>
+
+    <h6 class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-2">Configuración Financiera</h6>
+    
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label for="{{ form.moneda_base_costo.id_for_label }}" class="form-label small fw-semibold text-dark">Moneda (Costo) <span class="text-danger">*</span></label>
+            {{ form.moneda_base_costo }}
+        </div>
+        <div class="col-md-6">
+            <label for="{{ form.moneda_base_venta.id_for_label }}" class="form-label small fw-semibold text-dark">Moneda (Venta) <span class="text-danger">*</span></label>
+            {{ form.moneda_base_venta }}
+        </div>
+    </div>
+
+    <!-- Bloque de Solo Lectura para el Costo Promedio (Calculado por el sistema) -->
+    {% if producto.id %}
+    <div class="p-3 bg-light rounded-3 border mb-4">
+        <label class="form-label small fw-semibold text-muted mb-0">Costo Promedio Ponderado Actual</label>
+        <div class="fs-5 fw-bold text-dark">${{ producto.costo_promedio_mxn|floatformat:4 }} <span class="fs-6 text-muted">MXN</span></div>
+        <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>Calculado automáticamente por el Kardex.</small>
+    </div>
+    {% endif %}
+
+    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+        <button type="button" class="btn btn-light border shadow-sm" data-bs-dismiss="offcanvas">Cancelar</button>
+        <!-- Solo muestra el botón Guardar si tiene permisos -->
+        {% if perms.inventario.change_producto %}
+        <button type="submit" class="btn btn-primary shadow-sm">
+            <i class="bi bi-check2-circle me-1"></i> Guardar Producto
+        </button>
+        {% endif %}
+    </div>
+</form>
+
+<!-- Script para cerrar el modal si la operación fue exitosa (HTMX devuelve un trigger en el header) -->
+<script>
+    document.body.addEventListener("productoGuardado", function(evt){
+        var myOffcanvas = document.getElementById('offcanvasProducto');
+        var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+        if (bsOffcanvas) {
+            bsOffcanvas.hide();
+        }
+        // Dispara la recarga de la tabla para reflejar el nuevo dato
+        htmx.trigger("#tabla-container input[name='q']", "search");
+    });
+</script>
