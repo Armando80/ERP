@@ -130,5 +130,24 @@
 
     <!-- Bootstrap v5.2.3 JS Bundle -->
     <script src="https://jsdelivr.net"></script>
+    <script>
+    // Escuchar el evento que lanza Django cuando el producto se guarda correctamente
+    document.body.addEventListener('productoGuardado', function(evt) {
+        // 1. Buscar la instancia del Offcanvas que está abierta
+        const offcanvasElement = document.getElementById('offcanvasProducto');
+        const instance = bootstrap.Offcanvas.getInstance(offcanvasElement);
+        
+        if (instance) {
+            instance.hide(); // Cierra el panel lateral de forma animada
+        }
+
+        // 2. Limpieza de seguridad para el Backdrop de Bootstrap
+        // HTMX a veces reemplaza fragmentos de HTML antes de que Bootstrap termine su animación,
+        // lo que puede dejar la pantalla oscura y congelada. Esto asegura una limpieza total:
+        document.querySelectorAll('.offcanvas-backdrop').forEach(el => el.remove());
+        document.body.style.overflow = 'auto';
+        document.body.style.paddingRight = '0px';
+    });
+</script>
 </body>
 </html>
