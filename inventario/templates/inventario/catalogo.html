@@ -42,20 +42,22 @@
                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                     <!-- Buscador en tiempo real con HTMX -->
                     <input type="text"
+                        value="{{ query }}"
                         class="form-control border-start-0 ps-0"
                         placeholder="Buscar por SKU, Nombre o Tipo..."
                         name="q"
                         hx-get="{% url 'inventario:catalogo' %}"
                         hx-trigger="keyup changed delay:400ms, search"
-                        hx-target="#tabla-container"
-                        hx-indicator="#loading-indicator">
+                        hx-target="#tabla-productos-container"
+                        hx-indicator="#loading-indicator"
+                        hx-include="[name='tipo']">
                 </div>
             </div>
             <div class="col-12 col-md-6 col-lg-8 d-flex justify-content-md-end gap-2">
                 <select class="form-select w-auto text-muted small" name="tipo"
                         hx-get="{% url 'inventario:catalogo' %}"
                         hx-trigger="change"
-                        hx-target="#tabla-container"
+                        hx-target="#tabla-productos-container"
                         hx-include="[name='q']">
                     <option value="">Todos los Tipos</option>
                     <option value="MP">Materia Prima</option>
@@ -72,7 +74,7 @@
 </div>
 
 <!-- Contenedor dinámico de la tabla. HTMX inyectará _tabla_productos.html aquí -->
-<div id="tabla-container">
+<div id="tabla-productos-container">
     {% include 'inventario/partials/_tabla_productos.html' %}
 </div>
 

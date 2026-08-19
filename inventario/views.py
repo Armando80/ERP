@@ -3,6 +3,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required, permission_required
+from django.db.models import Q # <--- Importante para búsquedas avanzadas
 from .models import Producto
 from .forms import ProductoForm
 
@@ -13,12 +14,29 @@ def catalogo_view(request):
     """
     productos = Producto.objects.all().order_by('sku')
 
+    # 1. Capturar los parámetros de búsqueda y filtro enviados por el cliente
+    query = request.GET.get('q', '').strip()
+    tipo_filtro = request.GET.get('tipo', '').strip()
+
+    # 2. Aplicar filtro por texto (SKU o Nombre)
+    if query:
+        productos = productos.filter(
+            Q(sku__icontains=query) | Q(nombre__icontains=query)
+        )
+
+    # 3. Aplicar filtro por clasificación/tipo de producto (si se selecciona)
+    if tipo_filtro:
+        productos = productos.filter(tipo=tipo_filtro)
+
     # CORRECCIÓN: Usamos request.headers para detectar HTMX de forma nativa
     if request.headers.get('HX-Request'):
         return render(request, 'inventario/partials/_tabla_productos.html', {'productos': productos})
 
-    # Si es una carga normal de la página
-    return render(request, 'inventario/catalogo.html', {'productos': productos})
+    return render(request, 'inventario/catalogo.html', {
+        'productos': productos,
+        'query': query,
+        'tipo_filtro': tipo_filtro
+    })
 
 @login_required
 @permission_required('inventario.change_producto', raise_exception=True) # Seguridad basada en roles
