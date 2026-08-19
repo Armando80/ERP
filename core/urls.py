@@ -22,6 +22,7 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('general.urls')), # Conecta la raíz del ERP al Dashboard General
+    path('inventario/', include('inventario.urls')),
 ]
 
 # ESTA LÍNEA ES OBLIGATORIA PARA QUE EL SERVIDOR ENCUENTRE LAS IMÁGENES

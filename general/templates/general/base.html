@@ -84,7 +84,7 @@
                 <i class="bi bi-speedometer2"></i> Inicio / General
             </a>
             <hr class="text-secondary mx-3 my-2 opacity-25">
-            <a href="#" class="nav-link"><i class="bi bi-box-seam"></i> Inventarios</a>
+            <a href="{% url 'inventario:catalogo' %}" class="nav-link"><i class="bi bi-box-seam"></i> Inventarios</a>
             <a href="#" class="nav-link"><i class="bi bi-cart3"></i> Compras</a>
             <a href="#" class="nav-link"><i class="bi bi-currency-dollar"></i> Ventas y Facturas</a>
             <a href="#" class="nav-link"><i class="bi bi-gear-wide-connected"></i> Producción</a>
@@ -127,9 +127,8 @@
             {% endblock %}
         </main>
     </div>
-
-    <!-- Bootstrap v5.2.3 JS Bundle -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- Bootstrap v5.2.3 JS Bundle (Incluye Popper.js necesario para Offcanvas) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     // Escuchar el evento que lanza Django cuando el producto se guarda correctamente
     document.body.addEventListener('productoGuardado', function(evt) {

@@ -12,11 +12,11 @@ def catalogo_view(request):
     Vista principal que renderiza la pantalla del catálogo de productos.
     """
     productos = Producto.objects.all().order_by('sku')
-    
-    # Si la petición viene de HTMX (ej. al escribir en la barra de búsqueda)
-    if request.htmx:
+
+    # CORRECCIÓN: Usamos request.headers para detectar HTMX de forma nativa
+    if request.headers.get('HX-Request'):
         return render(request, 'inventario/partials/_tabla_productos.html', {'productos': productos})
-        
+
     # Si es una carga normal de la página
     return render(request, 'inventario/catalogo.html', {'productos': productos})
 

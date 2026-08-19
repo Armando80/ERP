@@ -41,19 +41,19 @@
                 <div class="input-group">
                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                     <!-- Buscador en tiempo real con HTMX -->
-                    <input type="text" 
-                           class="form-control border-start-0 ps-0" 
-                           placeholder="Buscar por SKU, Nombre o Tipo..."
-                           name="q"
-                           hx-get="{% url 'inventario:producto_lista_htmx' %}"
-                           hx-trigger="keyup changed delay:400ms, search"
-                           hx-target="#tabla-container"
-                           hx-indicator="#loading-indicator">
+                    <input type="text"
+                        class="form-control border-start-0 ps-0"
+                        placeholder="Buscar por SKU, Nombre o Tipo..."
+                        name="q"
+                        hx-get="{% url 'inventario:catalogo' %}"
+                        hx-trigger="keyup changed delay:400ms, search"
+                        hx-target="#tabla-container"
+                        hx-indicator="#loading-indicator">
                 </div>
             </div>
             <div class="col-12 col-md-6 col-lg-8 d-flex justify-content-md-end gap-2">
                 <select class="form-select w-auto text-muted small" name="tipo"
-                        hx-get="{% url 'inventario:producto_lista_htmx' %}"
+                        hx-get="{% url 'inventario:catalogo' %}"
                         hx-trigger="change"
                         hx-target="#tabla-container"
                         hx-include="[name='q']">

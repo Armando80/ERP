@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-nkeb+)09v=dhpa8y*gbq%(3+s#)dfmb)3i@v-13)+im6l!ae!@'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 
@@ -134,3 +134,6 @@ STATICFILES_DIRS = [
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Redirigir a los usuarios no autenticados al login del administrador
+LOGIN_URL = '/admin/login/'
