@@ -40,53 +40,13 @@
             </select>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light text-muted small">
-                    <tr>
-                        <th>Fecha y Folio</th>
-                        <th>Producto (SKU)</th>
-                        <th>Almacén</th>
-                        <th>Tipo</th>
-                        <th class="text-end">Cantidad</th>
-                        <th class="text-end">Costo Unit.</th>
-                        <th class="text-center">Responsable</th>
-                    </tr>
-                </thead>
-                <tbody class="text-secondary text-sm">
-                    <!-- Ejemplo estático visual para que aprecies el diseño -->
-                    <tr>
-                        <td>
-                            <div class="fw-bold text-dark">Hoy, 10:45 AM</div>
-                            <small class="text-muted">#MOV-2026-089</small>
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-primary">Lámina de Hojalata 0.20mm</div>
-                            <small class="text-muted"><code class="text-dark">MP-HOJ-020</code></small>
-                        </td>
-                        <td>Almacén General</td>
-                        <td><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><i class="bi bi-arrow-down-circle me-1"></i> Entrada</span></td>
-                        <td class="text-end fw-bold text-dark">+500 Pzas</td>
-                        <td class="text-end">$12.50</td>
-                        <td class="text-center"><i class="bi bi-person-badge text-muted" title="{{ user.username }}"></i></td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <div class="fw-bold text-dark">Ayer, 16:30 PM</div>
-                            <small class="text-muted">#MOV-2026-088</small>
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-primary">Barniz Epóxico</div>
-                            <small class="text-muted"><code class="text-dark">MP-BRN-EPX</code></small>
-                        </td>
-                        <td>Almacén Producción</td>
-                        <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25"><i class="bi bi-arrow-up-circle me-1"></i> Salida</span></td>
-                        <td class="text-end fw-bold text-dark">-15 Lts</td>
-                        <td class="text-end">$185.00</td>
-                        <td class="text-center"><i class="bi bi-person-badge text-muted" title="{{ user.username }}"></i></td>
-                    </tr>
-                </tbody>
-            </table>
+                <!-- Este div escucha el evento 'movimientoGuardado' y le pide al servidor la tabla actualizada -->
+        <div id="tabla-movimientos-container"
+            hx-get="{% url 'inventario:movimientos' %}"
+            hx-trigger="movimientoGuardado from:body">
+
+            {% include 'inventario/partials/_tabla_movimientos.html' %}
+
         </div>
     </div>
 </div>

@@ -1,0 +1,57 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small">
+            <tr>
+                <th>Fecha y Folio</th>
+                <th>Producto (SKU)</th>
+                <th>Almacén</th>
+                <th>Tipo</th>
+                <th class="text-end">Cantidad</th>
+                <th class="text-center">Responsable</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary text-sm">
+            {% for mov in movimientos %}
+            <tr>
+                <td>
+                    <div class="fw-bold text-dark">{{ mov.fecha|date:"d/M/Y H:i" }}</div>
+                    <small class="text-muted">#{{ mov.id|stringformat:"05d" }}</small>
+                </td>
+                <td>
+                    <div class="fw-semibold text-primary">{{ mov.producto.nombre }}</div>
+                    <small class="text-muted"><code class="text-dark">{{ mov.producto.sku }}</code></small>
+                </td>
+                <td>
+                    {% if mov.tipo_movimiento == 'E' %}
+                        {{ mov.bodega_destino.nombre }}
+                    {% elif mov.tipo_movimiento == 'S' %}
+                        {{ mov.bodega_origen.nombre }}
+                    {% else %}
+                        {{ mov.bodega_origen.nombre }} <i class="bi bi-arrow-right"></i> {{ mov.bodega_destino.nombre }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if mov.tipo_movimiento == 'E' %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><i class="bi bi-arrow-down-circle me-1"></i> Entrada</span>
+                    {% elif mov.tipo_movimiento == 'S' %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25"><i class="bi bi-arrow-up-circle me-1"></i> Salida</span>
+                    {% else %}
+                        <span class="badge bg-info text-dark"><i class="bi bi-arrow-left-right me-1"></i> Transferencia</span>
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold {% if mov.tipo_movimiento == 'E' %}text-success{% else %}text-danger{% endif %}">
+                    {% if mov.tipo_movimiento == 'E' %}+{% else %}-{% endif %}{{ mov.cantidad|floatformat:2 }}
+                </td>
+                <td class="text-center"><i class="bi bi-person-badge fs-5 text-muted" title="{{ mov.usuario.username }}"></i></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center py-5 text-muted">
+                    <i class="bi bi-inboxes fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                    No hay movimientos registrados en el Kardex.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

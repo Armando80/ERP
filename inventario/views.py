@@ -4,7 +4,8 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Q # <--- Importante para búsquedas avanzadas
-from .models import Producto, MovimientoInventario
+from django.db import transaction
+from .models import Producto, MovimientoInventario, Stock
 from .forms import ProductoForm, MovimientoForm
 
 @login_required
@@ -69,32 +70,53 @@ def guardar_producto_view(request, pk=None):
 
 @login_required
 def movimientos_view(request):
-    """
-    Renderiza el historial general del Kardex y movimientos de almacén.
-    """
-    # Suponiendo que tu modelo se llama MovimientoInventario
-    # movimientos = MovimientoInventario.objects.all().order_by('-fecha')
+    """Renderiza el historial general del Kardex. Retorna solo la tabla si es petición HTMX."""
+    # Usamos select_related para hacer la consulta mucho más rápida y evitar saturar la base de datos
+    movimientos = MovimientoInventario.objects.select_related(
+        'producto', 'bodega_origen', 'bodega_destino', 'usuario'
+    ).all().order_by('-fecha')[:100] # Limitamos a los últimos 100 para rendimiento visual
 
-    # Para visualizar la UI mientras conectas el modelo, usaremos una lista vacía temporalmente:
-    movimientos = []
+    if request.headers.get('HX-Request'):
+        return render(request, 'inventario/partials/_tabla_movimientos.html', {'movimientos': movimientos})
 
-    return render(request, 'inventario/movimientos.html', {
-        'movimientos': movimientos
-    })
+    return render(request, 'inventario/movimientos.html', {'movimientos': movimientos})
 
 @login_required
 @permission_required('inventario.add_movimientoinventario', raise_exception=True)
 def registrar_movimiento_view(request):
+    """Guarda el registro de movimiento y altera matemáticamente el Stock."""
     if request.method == 'POST':
         form = MovimientoForm(request.POST)
         if form.is_valid():
-            movimiento = form.save(commit=False)
-            movimiento.usuario = request.user
-            movimiento.save()
+            # Iniciar bloque atómico: O se guarda todo (Kardex + Stock), o no se guarda nada.
+            with transaction.atomic():
+                movimiento = form.save(commit=False)
+                movimiento.usuario = request.user
+                movimiento.save()
 
+                # --- LÓGICA DE ACTUALIZACIÓN DE STOCK FÍSICO ---
+                if movimiento.tipo_movimiento == MovimientoInventario.ENTRADA:
+                    stock, created = Stock.objects.get_or_create(
+                        producto=movimiento.producto,
+                        bodega=movimiento.bodega_destino
+                    )
+                    stock.cantidad += movimiento.cantidad
+                    stock.save()
+
+                elif movimiento.tipo_movimiento == MovimientoInventario.SALIDA:
+                    # En las salidas no usamos get_or_create porque ya validamos en el forms/models que sí exista
+                    stock = Stock.objects.get(
+                        producto=movimiento.producto,
+                        bodega=movimiento.bodega_origen
+                    )
+                    stock.cantidad -= movimiento.cantidad
+                    stock.save()
+
+            # Avisamos al navegador (HTMX) que la operación fue un éxito
             response = HttpResponse()
             response['HX-Trigger'] = 'movimientoGuardado'
             return response
+
     else:
         form = MovimientoForm()
 
