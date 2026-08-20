@@ -78,16 +78,76 @@
         <div class="p-3 text-center border-bottom border-secondary border-opacity-25 bg-white">
             <img src="{% static 'general/img/logo_decorlata.png' %}" alt="Decorlata" class="img-fluid" style="max-height: 55px; width: auto;">
         </div>
-        
+
         <div class="nav flex-column mt-3 flex-grow-1">
             <a href="{% url 'general:dashboard' %}" class="nav-link active">
                 <i class="bi bi-speedometer2"></i> Inicio / General
             </a>
             <hr class="text-secondary mx-3 my-2 opacity-25">
-            <a href="{% url 'inventario:catalogo' %}" class="nav-link"><i class="bi bi-box-seam"></i> Inventarios</a>
-            <a href="#" class="nav-link"><i class="bi bi-cart3"></i> Compras</a>
-            <a href="#" class="nav-link"><i class="bi bi-currency-dollar"></i> Ventas y Facturas</a>
-            <a href="#" class="nav-link"><i class="bi bi-gear-wide-connected"></i> Producción</a>
+
+            <!-- Módulo de Inventarios -->
+            <a href="#submenuInventario" data-bs-toggle="collapse" class="nav-link d-flex justify-content-between align-items-center" aria-expanded="false">
+                <span><i class="bi bi-box-seam me-2"></i> Inventarios</span>
+                <i class="bi bi-chevron-down small opacity-50"></i>
+            </a>
+            <div class="collapse" id="submenuInventario">
+                <div class="nav flex-column ms-3 mb-1">
+                    <a href="{% url 'inventario:catalogo' %}" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Catálogo de Productos
+                    </a>
+                    <a href="{% url 'inventario:movimientos' %}" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Kardex y Movimientos
+                    </a>
+                </div>
+            </div>
+
+            <!-- Módulo de Compras -->
+            <a href="#submenuCompras" data-bs-toggle="collapse" class="nav-link d-flex justify-content-between align-items-center" aria-expanded="false">
+                <span><i class="bi bi-cart3 me-2"></i> Compras</span>
+                <i class="bi bi-chevron-down small opacity-50"></i>
+            </a>
+            <div class="collapse" id="submenuCompras">
+                <div class="nav flex-column ms-3 mb-1">
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Catálogo de Proveedores
+                    </a>
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Órdenes de Compra
+                    </a>
+                </div>
+            </div>
+
+            <!-- Módulo de Ventas -->
+            <a href="#submenuVentas" data-bs-toggle="collapse" class="nav-link d-flex justify-content-between align-items-center" aria-expanded="false">
+                <span><i class="bi bi-currency-dollar me-2"></i> Ventas y Facturas</span>
+                <i class="bi bi-chevron-down small opacity-50"></i>
+            </a>
+            <div class="collapse" id="submenuVentas">
+                <div class="nav flex-column ms-3 mb-1">
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Directorio de Clientes
+                    </a>
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Cotizaciones y Pedidos
+                    </a>
+                </div>
+            </div>
+
+            <!-- Módulo de Producción -->
+            <a href="#submenuProduccion" data-bs-toggle="collapse" class="nav-link d-flex justify-content-between align-items-center" aria-expanded="false">
+                <span><i class="bi bi-gear-wide-connected me-2"></i> Producción</span>
+                <i class="bi bi-chevron-down small opacity-50"></i>
+            </a>
+            <div class="collapse" id="submenuProduccion">
+                <div class="nav flex-column ms-3 mb-1">
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Órdenes de Producción
+                    </a>
+                    <a href="#" class="nav-link small py-2 my-0">
+                        <i class="bi bi-arrow-return-right me-1"></i> Fórmulas y LDM
+                    </a>
+                </div>
+            </div>
         </div>
 
         <div class="p-3 border-top border-secondary border-opacity-25">
