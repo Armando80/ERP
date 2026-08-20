@@ -4,8 +4,8 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Q # <--- Importante para búsquedas avanzadas
-from .models import Producto
-from .forms import ProductoForm
+from .models import Producto, MovimientoInventario
+from .forms import ProductoForm, MovimientoForm
 
 @login_required
 def catalogo_view(request):
@@ -66,3 +66,36 @@ def guardar_producto_view(request, pk=None):
     # Renderizamos solo el pedacito de HTML del formulario para inyectarlo en el Offcanvas
     return render(request, 'inventario/partials/_producto_form.html', {'form': form, 'producto': producto})
     pass
+
+@login_required
+def movimientos_view(request):
+    """
+    Renderiza el historial general del Kardex y movimientos de almacén.
+    """
+    # Suponiendo que tu modelo se llama MovimientoInventario
+    # movimientos = MovimientoInventario.objects.all().order_by('-fecha')
+
+    # Para visualizar la UI mientras conectas el modelo, usaremos una lista vacía temporalmente:
+    movimientos = []
+
+    return render(request, 'inventario/movimientos.html', {
+        'movimientos': movimientos
+    })
+
+@login_required
+@permission_required('inventario.add_movimientoinventario', raise_exception=True)
+def registrar_movimiento_view(request):
+    if request.method == 'POST':
+        form = MovimientoForm(request.POST)
+        if form.is_valid():
+            movimiento = form.save(commit=False)
+            movimiento.usuario = request.user
+            movimiento.save()
+
+            response = HttpResponse()
+            response['HX-Trigger'] = 'movimientoGuardado'
+            return response
+    else:
+        form = MovimientoForm()
+
+    return render(request, 'inventario/partials/_movimiento_form.html', {'form': form})

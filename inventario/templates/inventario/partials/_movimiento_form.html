@@ -1,0 +1,73 @@
+<form hx-post="{% url 'inventario:registrar_movimiento' %}" hx-target="#form-movimiento-container">
+    {% csrf_token %}
+    
+    <!-- Mostrar Errores de Validación (como stock insuficiente) -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger small py-2 mb-3">
+            <ul class="mb-0 ps-3">
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="alert alert-info small border-0 bg-primary bg-opacity-10 text-primary">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Las <strong>Entradas</strong> requieren Bodega Destino. Las <strong>Salidas</strong> requieren Bodega Origen.
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-semibold text-secondary small">Tipo de Movimiento</label>
+        {{ form.tipo_movimiento }}
+        {{ form.tipo_movimiento.errors }}
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-semibold text-secondary small">Producto / SKU</label>
+        {{ form.producto }}
+        {{ form.producto.errors }}
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6">
+            <label class="form-label fw-semibold text-secondary small">Bodega Origen</label>
+            {{ form.bodega_origen }}
+            {{ form.bodega_origen.errors }}
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-semibold text-secondary small">Bodega Destino</label>
+            {{ form.bodega_destino }}
+            {{ form.bodega_destino.errors }}
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6">
+            <label class="form-label fw-semibold text-secondary small">Cantidad</label>
+            {{ form.cantidad }}
+            {{ form.cantidad.errors }}
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-semibold text-secondary small">Costo Unit. (MXN)</label>
+            {{ form.costo_unitario_mxn_capturado }}
+            {{ form.costo_unitario_mxn_capturado.errors }}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-semibold text-secondary small">Referencia</label>
+        {{ form.referencia_operacion }}
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label fw-semibold text-secondary small">Observaciones</label>
+        {{ form.observaciones }}
+    </div>
+
+    <div class="d-grid mt-4">
+        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm">
+            <i class="bi bi-save me-2"></i>Procesar Movimiento
+        </button>
+    </div>
+</form>

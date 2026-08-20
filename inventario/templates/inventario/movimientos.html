@@ -1,0 +1,124 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Kardex y Movimientos | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="fw-bold text-dark mb-1">Kardex de Almacén</h2>
+        <p class="text-muted mb-0">Registro histórico de entradas, salidas y ajustes de inventario.</p>
+    </div>
+    <div class="col-auto">
+        <!-- Botón que abre el Offcanvas y carga el formulario vía HTMX -->
+        <button class="btn btn-primary shadow-sm" 
+                hx-get="{% url 'inventario:registrar_movimiento' %}" 
+                hx-target="#form-movimiento-container"
+                data-bs-toggle="offcanvas" 
+                data-bs-target="#offcanvasMovimiento">
+            <i class="bi bi-box-arrow-in-down-right me-2"></i>Registrar Movimiento
+        </button>
+    </div>
+</div>
+
+<!-- Tarjeta Principal con la Tabla -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+
+        <!-- Filtros Rápidos (Opcional para el futuro) -->
+        <div class="d-flex gap-3 mb-4">
+            <input type="text" class="form-control w-25" placeholder="Buscar por SKU o Folio...">
+            <select class="form-select w-auto">
+                <option value="">Todos los Almacenes</option>
+                <option value="MP">Almacén General (MP)</option>
+                <option value="PT">Almacén PT</option>
+            </select>
+            <select class="form-select w-auto">
+                <option value="">Todos los Tipos</option>
+                <option value="ENTRADA">Solo Entradas</option>
+                <option value="SALIDA">Solo Salidas</option>
+            </select>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th>Fecha y Folio</th>
+                        <th>Producto (SKU)</th>
+                        <th>Almacén</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Costo Unit.</th>
+                        <th class="text-center">Responsable</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary text-sm">
+                    <!-- Ejemplo estático visual para que aprecies el diseño -->
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark">Hoy, 10:45 AM</div>
+                            <small class="text-muted">#MOV-2026-089</small>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-primary">Lámina de Hojalata 0.20mm</div>
+                            <small class="text-muted"><code class="text-dark">MP-HOJ-020</code></small>
+                        </td>
+                        <td>Almacén General</td>
+                        <td><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><i class="bi bi-arrow-down-circle me-1"></i> Entrada</span></td>
+                        <td class="text-end fw-bold text-dark">+500 Pzas</td>
+                        <td class="text-end">$12.50</td>
+                        <td class="text-center"><i class="bi bi-person-badge text-muted" title="{{ user.username }}"></i></td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark">Ayer, 16:30 PM</div>
+                            <small class="text-muted">#MOV-2026-088</small>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-primary">Barniz Epóxico</div>
+                            <small class="text-muted"><code class="text-dark">MP-BRN-EPX</code></small>
+                        </td>
+                        <td>Almacén Producción</td>
+                        <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25"><i class="bi bi-arrow-up-circle me-1"></i> Salida</span></td>
+                        <td class="text-end fw-bold text-dark">-15 Lts</td>
+                        <td class="text-end">$185.00</td>
+                        <td class="text-center"><i class="bi bi-person-badge text-muted" title="{{ user.username }}"></i></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- OFFCANVAS PARA REGISTRO DE MOVIMIENTOS -->
+<!-- ========================================== -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasMovimiento" hx-on::after-hide="document.getElementById('form-movimiento-container').innerHTML = ''">
+    <div class="offcanvas-header border-bottom bg-light">
+        <h5 class="offcanvas-title fw-bold text-dark"><i class="bi bi-boxes me-2"></i>Capturar Movimiento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <!-- Contenedor dinámico HTMX -->
+    <div class="offcanvas-body" id="form-movimiento-container">
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para cerrar el Offcanvas al guardar (Reutiliza la lógica del catálogo) -->
+<script>
+    document.body.addEventListener('movimientoGuardado', function(evt) {
+        const offcanvasElement = document.getElementById('offcanvasMovimiento');
+        const instance = bootstrap.Offcanvas.getInstance(offcanvasElement);
+        if (instance) instance.hide();
+        document.querySelectorAll('.offcanvas-backdrop').forEach(el => el.remove());
+        document.body.style.overflow = 'auto';
+        document.body.style.paddingRight = '0px';
+    });
+</script>
+{% endblock %}

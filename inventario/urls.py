@@ -18,4 +18,8 @@ urlpatterns = [
 
     # NUEVA LÍNEA: Ruta para el botón de "Ver detalles" (Ojito)
     path('catalogo/detalle/<int:pk>/', views.guardar_producto_view, name='producto_detalle'),
+
+    # Rutas para el Kardex y Movimientos
+    path('movimientos/', views.movimientos_view, name='movimientos'),
+    path('movimientos/registrar/', views.registrar_movimiento_view, name='registrar_movimiento'),
 ]
