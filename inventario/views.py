@@ -84,35 +84,21 @@ def movimientos_view(request):
 @login_required
 @permission_required('inventario.add_movimientoinventario', raise_exception=True)
 def registrar_movimiento_view(request):
-    """Guarda el registro de movimiento y altera matemáticamente el Stock."""
+    """
+    Guarda el registro de movimiento.
+    Toda la lógica de Stock y Costo Promedio la maneja automáticamente
+    el archivo signals.py en segundo plano.
+    """
     if request.method == 'POST':
         form = MovimientoForm(request.POST)
         if form.is_valid():
-            # Iniciar bloque atómico: O se guarda todo (Kardex + Stock), o no se guarda nada.
-            with transaction.atomic():
-                movimiento = form.save(commit=False)
-                movimiento.usuario = request.user
-                movimiento.save()
+            movimiento = form.save(commit=False)
+            movimiento.usuario = request.user
 
-                # --- LÓGICA DE ACTUALIZACIÓN DE STOCK FÍSICO ---
-                if movimiento.tipo_movimiento == MovimientoInventario.ENTRADA:
-                    stock, created = Stock.objects.get_or_create(
-                        producto=movimiento.producto,
-                        bodega=movimiento.bodega_destino
-                    )
-                    stock.cantidad += movimiento.cantidad
-                    stock.save()
+            # Al ejecutar save(), se dispara la señal de signals.py que hace toda la magia
+            movimiento.save()
 
-                elif movimiento.tipo_movimiento == MovimientoInventario.SALIDA:
-                    # En las salidas no usamos get_or_create porque ya validamos en el forms/models que sí exista
-                    stock = Stock.objects.get(
-                        producto=movimiento.producto,
-                        bodega=movimiento.bodega_origen
-                    )
-                    stock.cantidad -= movimiento.cantidad
-                    stock.save()
-
-            # Avisamos al navegador (HTMX) que la operación fue un éxito
+            # Avisamos a HTMX para que cierre el panel y actualice tablas
             response = HttpResponse()
             response['HX-Trigger'] = 'movimientoGuardado'
             return response
@@ -121,3 +107,33 @@ def registrar_movimiento_view(request):
         form = MovimientoForm()
 
     return render(request, 'inventario/partials/_movimiento_form.html', {'form': form})
+
+# Asegúrate de importar Stock en la parte superior si aún no está
+# from .models import Producto, Stock, MovimientoInventario
+
+@login_required
+@permission_required('inventario.view_stock', raise_exception=True)
+def producto_stock_view(request, pk):
+    """
+    Recupera el stock desglosado por bodega para un producto y lo inyecta en un modal.
+    """
+    producto = get_object_or_404(Producto, pk=pk)
+
+    # Traer existencias y usar select_related para optimizar la consulta a la base de datos
+    existencias = Stock.objects.filter(producto=producto).select_related('bodega')
+
+    # Calcular totales rápidos en Python
+    total_fisico = sum(e.cantidad for e in existencias)
+    total_reservado = sum(e.cantidad_reservada for e in existencias)
+    total_disponible = total_fisico - total_reservado
+
+    context = {
+        'producto': producto,
+        'existencias': existencias,
+        'total_fisico': total_fisico,
+        'total_reservado': total_reservado,
+        'total_disponible': total_disponible,
+    }
+
+    # Retornamos únicamente el fragmento HTML del modal
+    return render(request, 'inventario/partials/_modal_stock.html', context)

@@ -1,0 +1,70 @@
+<!-- Modal de Bootstrap -->
+<div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom">
+                <h5 class="modal-title fw-bold text-dark" id="stockModalLabel">
+                    <i class="bi bi-boxes text-primary me-2"></i>Existencias: {{ producto.nombre }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                    <span class="badge bg-secondary me-3 fs-6">{{ producto.sku }}</span>
+                    <span class="text-muted small">Costo Promedio Ref: <strong>${{ producto.costo_promedio_mxn|floatformat:4 }} MXN</strong></span>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle text-center small mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-start text-secondary">Bodega / Almacén</th>
+                                <th class="text-secondary">Físico</th>
+                                <th class="text-secondary">Reservado (OP/Pedidos)</th>
+                                <th class="bg-primary bg-opacity-10 text-primary border-primary border-opacity-25">Disponible</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in existencias %}
+                            <tr>
+                                <td class="text-start fw-semibold text-dark">{{ item.bodega.nombre }}</td>
+                                <td>{{ item.cantidad|floatformat:2 }}</td>
+                                <td class="text-warning fw-semibold">{{ item.cantidad_reservada|floatformat:2 }}</td>
+                                <td class="bg-primary bg-opacity-10 fw-bold text-primary border-primary border-opacity-25">{{ item.cantidad_disponible|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-muted py-4">
+                                    <i class="bi bi-inboxes mb-2 fs-3 d-block opacity-50"></i>
+                                    No hay stock registrado para este producto en ninguna bodega.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if existencias %}
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td class="text-end text-secondary">TOTALES GLOBALES:</td>
+                                <td>{{ total_fisico|floatformat:2 }}</td>
+                                <td class="text-warning">{{ total_reservado|floatformat:2 }}</td>
+                                <td class="text-primary fs-6">{{ total_disponible|floatformat:2 }}</td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top">
+                <button type="button" class="btn btn-secondary shadow-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para inicializar y mostrar el modal en cuanto HTMX inyecta el HTML -->
+<script>
+    var stockModalElement = document.getElementById('stockModal');
+    var stockModal = new bootstrap.Modal(stockModalElement);
+    stockModal.show();
+</script>

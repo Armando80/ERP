@@ -37,8 +37,16 @@
                             <small class="text-muted">MXN</small>
                         </td>
                         <td class="text-end pe-4">
+                            <!-- NUEVO: Botón Ver Existencias (Modal HTMX) -->
+                            <button class="btn btn-sm btn-light text-info border shadow-sm" 
+                                    hx-get="{% url 'inventario:producto_stock' producto.id %}" 
+                                    hx-target="#modal-stock-container"
+                                    title="Ver Existencias por Almacén">
+                                <i class="bi bi-boxes"></i>
+                            </button>
+
                             <!-- Botón Ver (Cualquier usuario logueado) -->
-                            <button class="btn btn-sm btn-light text-primary border shadow-sm" 
+                            <button class="btn btn-sm btn-light text-primary border shadow-sm ms-1" 
                                     hx-get="{% url 'inventario:producto_detalle' producto.id %}" 
                                     hx-target="#offcanvas-content"
                                     data-bs-toggle="offcanvas" 
