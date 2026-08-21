@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Q # <--- Importante para búsquedas avanzadas
 from django.db import transaction
-from .models import Producto, MovimientoInventario, Stock
+from .models import Producto, MovimientoInventario, Stock, Bodega
 from .forms import ProductoForm, MovimientoForm
 
 @login_required
@@ -137,3 +137,37 @@ def producto_stock_view(request, pk):
 
     # Retornamos únicamente el fragmento HTML del modal
     return render(request, 'inventario/partials/_modal_stock.html', context)
+
+@login_required
+def existencias_view(request):
+    """
+    Renderiza la tabla global de existencias con filtros por texto y bodega vía HTMX.
+    """
+    # Consulta base optimizada para no saturar la base de datos
+    existencias = Stock.objects.select_related('producto', 'bodega').all().order_by('producto__sku', 'bodega__nombre')
+
+    # 1. Capturar parámetros
+    query = request.GET.get('q', '').strip()
+    bodega_id = request.GET.get('bodega', '').strip()
+
+    # 2. Aplicar filtro por texto (SKU o Nombre)
+    if query:
+        existencias = existencias.filter(
+            Q(producto__sku__icontains=query) | Q(producto__nombre__icontains=query)
+        )
+
+    # 3. Aplicar filtro por Bodega
+    if bodega_id:
+        existencias = existencias.filter(bodega_id=bodega_id)
+
+    # 4. Retorno para peticiones HTMX (Solo inyecta la tabla)
+    if request.headers.get('HX-Request'):
+        return render(request, 'inventario/partials/_tabla_existencias.html', {'existencias': existencias})
+
+    # 5. Retorno para carga de página completa
+    bodegas = Bodega.objects.all() # Traemos las bodegas reales para el filtro
+    return render(request, 'inventario/existencias.html', {
+        'existencias': existencias,
+        'bodegas': bodegas,
+        'query': query
+    })

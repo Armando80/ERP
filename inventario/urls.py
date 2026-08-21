@@ -22,6 +22,9 @@ urlpatterns = [
     # NUEVA RUTA PARA EL MODAL DE EXISTENCIAS
     path('catalogo/<int:pk>/stock/', views.producto_stock_view, name='producto_stock'),
 
+    # NUEVA RUTA PARA EXISTENCIAS GLOBALES
+    path('existencias/', views.existencias_view, name='existencias'),
+
     # Rutas para el Kardex y Movimientos
     path('movimientos/', views.movimientos_view, name='movimientos'),
     path('movimientos/registrar/', views.registrar_movimiento_view, name='registrar_movimiento'),
