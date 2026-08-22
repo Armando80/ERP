@@ -1,6 +1,7 @@
 # ERP/compras/services.py (o puedes ponerlo en views.py)
 
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
@@ -12,6 +13,7 @@ from .models import OrdenCompra_Maestro, OrdenCompra_Detalle, Proveedor
 from inventario.models import MovimientoInventario, Producto, Bodega
 from general.models import TipoCambio, Moneda
 from decimal import Decimal
+from .forms import ProveedorForm
 
 def procesar_recepcion_compra(orden_id, usuario):
     """
@@ -222,3 +224,39 @@ def recibir_orden_view(request, pk):
             messages.error(request, f"Error al procesar: {str(e)}")
 
     return redirect('compras:historial_ordenes')
+
+@login_required
+def proveedores_catalogo_view(request):
+    """Muestra el catálogo de proveedores con búsqueda en tiempo real."""
+    query = request.GET.get('q', '').strip()
+    proveedores = Proveedor.objects.all().order_by('razon_social')
+
+    if query:
+        proveedores = proveedores.filter(
+            Q(razon_social__icontains=query) |
+            Q(rfc__icontains=query) |
+            Q(nombre_comercial__icontains=query)
+        )
+
+    if request.headers.get('HX-Request'):
+        return render(request, 'compras/partials/_tabla_proveedores.html', {'proveedores': proveedores})
+
+    return render(request, 'compras/proveedores_catalogo.html', {'proveedores': proveedores, 'query': query})
+
+@login_required
+def guardar_proveedor_view(request, pk=None):
+    """Maneja la creación y edición de proveedores en el Offcanvas."""
+    proveedor = get_object_or_404(Proveedor, pk=pk) if pk else None
+
+    if request.method == 'POST':
+        form = ProveedorForm(request.POST, instance=proveedor)
+        if form.is_valid():
+            form.save()
+            # Disparamos el evento para que HTMX recargue la tabla y cierre el panel
+            response = HttpResponse()
+            response['HX-Trigger'] = 'proveedorGuardado'
+            return response
+    else:
+        form = ProveedorForm(instance=proveedor)
+
+    return render(request, 'compras/partials/_proveedor_form.html', {'form': form, 'proveedor': proveedor})

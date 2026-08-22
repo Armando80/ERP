@@ -1,0 +1,16 @@
+<form hx-post="{% if proveedor %}{% url 'compras:proveedor_editar' proveedor.id %}{% else %}{% url 'compras:proveedor_crear' %}{% endif %}" hx-target="#offcanvas-content">
+    {% csrf_token %}
+    <div class="mb-3">{{ form.rfc.label_tag }}{{ form.rfc }}</div>
+    <div class="mb-3">{{ form.razon_social.label_tag }}{{ form.razon_social }}</div>
+    <div class="mb-3">{{ form.nombre_comercial.label_tag }}{{ form.nombre_comercial }}</div>
+    <div class="row">
+        <div class="col-6 mb-3">{{ form.telefono.label_tag }}{{ form.telefono }}</div>
+        <div class="col-6 mb-3">{{ form.dias_credito.label_tag }}{{ form.dias_credito }}</div>
+    </div>
+    <div class="mb-3">{{ form.email.label_tag }}{{ form.email }}</div>
+    <div class="mb-3">{{ form.direccion.label_tag }}{{ form.direccion }}</div>
+    <div class="form-check form-switch mb-4">
+        {{ form.activo }} <label class="form-check-label">Proveedor Activo</label>
+    </div>
+    <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="bi bi-save me-2"></i>Guardar Proveedor</button>
+</form>
