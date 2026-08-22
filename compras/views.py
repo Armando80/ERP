@@ -1,10 +1,11 @@
 # ERP/compras/services.py (o puedes ponerlo en views.py)
 
 from django.db import transaction
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.contrib import messages
 
 # Importa tus modelos de las distintas aplicaciones
 from .models import OrdenCompra_Maestro, OrdenCompra_Detalle, Proveedor
@@ -162,3 +163,62 @@ def historial_ordenes_view(request):
     ordenes = OrdenCompra_Maestro.objects.select_related('proveedor', 'moneda').all().order_by('-fecha_emision')
 
     return render(request, 'compras/historial_ordenes.html', {'ordenes': ordenes})
+
+@login_required
+def recibir_orden_view(request, pk):
+    """Procesa la entrada al almacén y la afectación contable."""
+    orden = get_object_or_404(OrdenCompra_Maestro, pk=pk)
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                if orden.estado == 'RECIBIDA':
+                    raise ValueError("Esta orden ya fue ingresada al almacén anteriormente.")
+
+                # 1. Resolver el Tipo de Cambio
+                tipo_cambio_val = Decimal('1.000000')
+                if orden.moneda.codigo != 'MXN':
+                    tc_hoy = TipoCambio.objects.filter(
+                        moneda_origen=orden.moneda,
+                        fecha=timezone.now().date()
+                    ).first()
+
+                    if tc_hoy:
+                        tipo_cambio_val = tc_hoy.valor
+                    else:
+                        raise ValueError(f"No hay un Tipo de Cambio registrado hoy para {orden.moneda.codigo}.")
+
+                orden.tipo_cambio_aplicado = tipo_cambio_val
+
+                # 2. Generar Movimientos de Inventario (Kardex)
+                for detalle in orden.detalles.all():
+                    costo_mxn = detalle.precio_unitario * tipo_cambio_val
+
+                    # Al crear este registro, la señal en inventario/signals.py
+                    # hará la suma de stock y recalculará el costo promedio ponderado.
+                    MovimientoInventario.objects.create(
+                        producto=detalle.producto,
+                        bodega_destino=orden.bodega_destino,
+                        tipo_movimiento=MovimientoInventario.ENTRADA,
+                        cantidad=detalle.cantidad,
+                        costo_unitario_original=detalle.precio_unitario,
+                        moneda_original=orden.moneda,
+                        tipo_cambio_aplicado=tipo_cambio_val,
+                        costo_unitario_mxn_capturado=costo_mxn,
+                        referencia_operacion=f"{orden.folio}",
+                        usuario=request.user
+                    )
+
+                    detalle.cantidad_recibida = detalle.cantidad
+                    detalle.save()
+
+                # 3. Marcar OC como recibida
+                orden.estado = 'RECIBIDA'
+                orden.save()
+
+                messages.success(request, f"¡Éxito! La mercancía de la {orden.folio} ya está en el almacén y el inventario fue valorizado.")
+
+        except Exception as e:
+            messages.error(request, f"Error al procesar: {str(e)}")
+
+    return redirect('compras:historial_ordenes')

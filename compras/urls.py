@@ -13,4 +13,6 @@ urlpatterns = [
     # Aquí iremos agregando el listado de órdenes, catálogo de proveedores, etc.
     # NUEVA RUTA PARA EL HISTORIAL
     path('historial/', views.historial_ordenes_view, name='historial_ordenes'),
+    # NUEVA RUTA PARA RECIBIR LA ORDEN
+    path('recibir/<int:pk>/', views.recibir_orden_view, name='recibir_orden'),
 ]
