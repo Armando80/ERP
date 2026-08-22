@@ -1,0 +1,185 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Nueva Orden de Compra | ERP Decorlata{% endblock %}
+
+{% block content %}
+<!-- Envolvemos todo en el Formulario HTMX -->
+<form hx-post="{% url 'compras:crear_orden' %}" hx-target="#main-content">
+    {% csrf_token %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">Nueva Orden de Compra</h2>
+            <p class="text-muted mb-0 small">Generación de pedido a proveedor y cálculo multidivisa.</p>
+        </div>
+        <!-- Botón de guardado nativo que disparará la petición hx-post -->
+        <button type="submit" class="btn btn-primary shadow-sm">
+            <i class="bi bi-save me-2"></i>Guardar Orden
+        </button>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <!-- ENCABEZADO DE LA ORDEN -->
+            <div class="row g-3 mb-4 border-bottom pb-4">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Proveedor</label>
+                    <!-- Atributo name="proveedor" añadido -->
+                    <select id="proveedor_id" name="proveedor" class="form-select border-secondary border-opacity-25" required>
+                        <option value="">Seleccione un proveedor...</option>
+                        {% for proveedor in proveedores %}
+                            <option value="{{ proveedor.id }}">{{ proveedor.razon_social }} ({{ proveedor.rfc }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Bodega Destino</label>
+                    <!-- Atributo name="bodega_destino" añadido -->
+                    <select id="bodega_id" name="bodega_destino" class="form-select border-secondary border-opacity-25" required>
+                        <option value="">Seleccione almacén de recepción...</option>
+                        {% for bodega in bodegas %}
+                            <option value="{{ bodega.id }}">{{ bodega.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Moneda de Compra</label>
+                    <!-- Atributo name="moneda" añadido -->
+                    <select id="moneda_id" name="moneda" class="form-select border-secondary border-opacity-25" onchange="actualizarSimboloMoneda()" required>
+                        {% for moneda in monedas %}
+                            <!-- Asumimos que tu modelo Moneda tiene campos 'codigo' (ej. MXN) y 'simbolo' (ej. $) -->
+                            <option value="{{ moneda.id }}" data-simbolo="{{ moneda.simbolo }}">{{ moneda.codigo }} - {{ moneda.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- DETALLE DE PRODUCTOS (Filas dinámicas) -->
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-list-check me-2"></i>Partidas de la Orden</h6>
+            <div class="table-responsive mb-3">
+                <table class="table table-bordered align-middle mb-0" id="tabla-detalles">
+                    <thead class="table-light text-muted small">
+                        <tr>
+                            <th style="width: 40%;">Producto / SKU</th>
+                            <th style="width: 15%;" class="text-end">Cantidad</th>
+                            <th style="width: 20%;" class="text-end">Precio Unit.</th>
+                            <th style="width: 20%;" class="text-end">Subtotal</th>
+                            <th style="width: 5%;" class="text-center">Quitar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="filas-container">
+                        <!-- Las filas se inyectan con JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button type="button" class="btn btn-sm btn-outline-secondary mb-4" onclick="agregarFila()">
+                <i class="bi bi-plus-circle me-1"></i> Agregar Producto
+            </button>
+
+            <!-- TOTALES -->
+            <div class="row justify-content-end">
+                <div class="col-md-4 col-lg-3">
+                    <div class="d-flex justify-content-between mb-2 small text-secondary">
+                        <span>Subtotal:</span>
+                        <span class="fw-semibold"><span class="simbolo-moneda">$</span><span id="lbl-subtotal">0.00</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 small text-secondary">
+                        <span>Impuestos (16%):</span>
+                        <span class="fw-semibold"><span class="simbolo-moneda">$</span><span id="lbl-impuestos">0.00</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                        <span class="fw-bold text-dark">TOTAL:</span>
+                        <span class="fw-bold text-primary fs-5"><span class="simbolo-moneda">$</span><span id="lbl-total">0.00</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    // 1. Agregar una nueva fila vacía con los atributos name[] de array
+    function agregarFila() {
+        const tbody = document.getElementById('filas-container');
+        const fila = document.createElement('tr');
+
+        fila.innerHTML = `
+            <td>
+                <select name="producto[]" class="form-select form-select-sm border-secondary border-opacity-25" required>
+                    <option value="">Buscar producto...</option>
+                    {% for producto in productos %}
+                        <option value="{{ producto.id }}">{{ producto.nombre }} ({{ producto.sku }})</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" name="cantidad[]" class="form-control form-control-sm text-end input-cantidad" placeholder="0.00" min="0.01" step="0.01" oninput="calcularFila(this)" required>
+            </td>
+            <td>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light simbolo-moneda">$</span>
+                    <input type="number" name="precio_unitario[]" class="form-control text-end input-precio" placeholder="0.00" min="0.01" step="0.0001" oninput="calcularFila(this)" required>
+                </div>
+            </td>
+            <td class="text-end fw-semibold text-dark align-middle">
+                <span class="simbolo-moneda">$</span><span class="lbl-subtotal-fila">0.00</span>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="eliminarFila(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(fila);
+        actualizarSimboloMoneda();
+    }
+
+    // 2. Calcular el subtotal de una sola fila al escribir
+    function calcularFila(elemento) {
+        const fila = elemento.closest('tr');
+        const cantidad = parseFloat(fila.querySelector('.input-cantidad').value) || 0;
+        const precio = parseFloat(fila.querySelector('.input-precio').value) || 0;
+
+        const subtotalLinea = cantidad * precio;
+        fila.querySelector('.lbl-subtotal-fila').textContent = subtotalLinea.toFixed(2);
+
+        calcularTotalesGlobales();
+    }
+
+    // 3. Eliminar fila y recalcular
+    function eliminarFila(boton) {
+        boton.closest('tr').remove();
+        calcularTotalesGlobales();
+    }
+
+    // 4. Calcular Totales Generales (Subtotal, IVA, Total)
+    function calcularTotalesGlobales() {
+        let subtotal = 0;
+        document.querySelectorAll('.lbl-subtotal-fila').forEach(celda => {
+            subtotal += parseFloat(celda.textContent) || 0;
+        });
+
+        const impuestos = subtotal * 0.16; // IVA estándar
+        const total = subtotal + impuestos;
+
+        document.getElementById('lbl-subtotal').textContent = subtotal.toFixed(2);
+        document.getElementById('lbl-impuestos').textContent = impuestos.toFixed(2);
+        document.getElementById('lbl-total').textContent = total.toFixed(2);
+    }
+
+    // 5. Cambiar el símbolo visual ($, US$, €) según la moneda seleccionada
+    function actualizarSimboloMoneda() {
+        const selectMoneda = document.getElementById('moneda_id');
+        const simbolo = selectMoneda.options[selectMoneda.selectedIndex].getAttribute('data-simbolo');
+
+        document.querySelectorAll('.simbolo-moneda').forEach(el => {
+            el.textContent = simbolo;
+        });
+    }
+
+    // Inicializar con una fila vacía al cargar la página
+    document.addEventListener('DOMContentLoaded', agregarFila);
+</script>
+{% endblock %}

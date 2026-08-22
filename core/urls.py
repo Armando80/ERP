@@ -23,6 +23,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('general.urls')), # Conecta la raíz del ERP al Dashboard General
     path('inventario/', include('inventario.urls')),
+    # NUEVA RUTA: Conectamos el módulo de Compras
+    path('compras/', include('compras.urls')),
 ]
 
 # ESTA LÍNEA ES OBLIGATORIA PARA QUE EL SERVIDOR ENCUENTRE LAS IMÁGENES
