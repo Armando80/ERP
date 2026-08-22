@@ -153,3 +153,12 @@ def crear_orden_compra_view(request):
     }
 
     return render(request, 'compras/orden_compra_form.html', context)
+
+@login_required
+def historial_ordenes_view(request):
+    """
+    Muestra el listado de todas las órdenes de compra generadas.
+    """
+    ordenes = OrdenCompra_Maestro.objects.select_related('proveedor', 'moneda').all().order_by('-fecha_emision')
+
+    return render(request, 'compras/historial_ordenes.html', {'ordenes': ordenes})

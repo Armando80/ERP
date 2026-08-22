@@ -1,0 +1,87 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Historial de Compras | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Compras</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Historial de Órdenes</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">Órdenes de Compra</h2>
+    </div>
+
+    <div>
+        <a href="{% url 'compras:crear_orden' %}" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-2"></i>Nueva Orden
+        </a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Folio</th>
+                        <th>Proveedor</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary small">
+                    {% for orden in ordenes %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark">{{ orden.folio }}</td>
+                        <td class="fw-semibold text-dark">{{ orden.proveedor.razon_social }}</td>
+                        <td>{{ orden.fecha_emision|date:"d M Y" }}</td>
+                        <td>
+                            {% if orden.estado == 'BORRADOR' %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Borrador</span>
+                            {% elif orden.estado == 'AUTORIZADA' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">Autorizada</span>
+                            {% elif orden.estado == 'RECIBIDA' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Recibida</span>
+                            {% else %}
+                                <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25 px-2 py-1">{{ orden.estado }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold text-dark">
+                            {{ orden.moneda.simbolo|default:"$" }}{{ orden.total|floatformat:2 }} <small class="text-muted">{{ orden.moneda.codigo }}</small>
+                        </td>
+                        <td class="text-end pe-4">
+                            <!-- Botón para ver detalles (Lo conectaremos después) -->
+                            <button class="btn btn-sm btn-light text-primary border shadow-sm" title="Ver Detalles">
+                                <i class="bi bi-eye"></i>
+                            </button>
+
+                            <!-- Botón de Recibir (Solo aparece si no está recibida) -->
+                            {% if orden.estado != 'RECIBIDA' %}
+                            <button class="btn btn-sm btn-success shadow-sm ms-1" title="Recibir e Ingresar al Kardex">
+                                <i class="bi bi-box-arrow-in-down"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-receipt fs-1 d-block mb-2 opacity-50"></i>
+                            No hay órdenes de compra registradas.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
