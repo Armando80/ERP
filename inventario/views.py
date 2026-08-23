@@ -70,16 +70,48 @@ def guardar_producto_view(request, pk=None):
 
 @login_required
 def movimientos_view(request):
-    """Renderiza el historial general del Kardex. Retorna solo la tabla si es petición HTMX."""
-    # Usamos select_related para hacer la consulta mucho más rápida y evitar saturar la base de datos
+    """
+    Renderiza el historial del Kardex y procesa los filtros dinámicos.
+    """
+    # Consulta base optimizada
     movimientos = MovimientoInventario.objects.select_related(
         'producto', 'bodega_origen', 'bodega_destino', 'usuario'
-    ).all().order_by('-fecha')[:100] # Limitamos a los últimos 100 para rendimiento visual
+    ).all().order_by('-fecha')
 
+    # 1. Capturar los parámetros enviados por HTMX
+    query = request.GET.get('q', '').strip()
+    bodega_id = request.GET.get('bodega', '')
+    tipo = request.GET.get('tipo', '')
+
+    # 2. Aplicar los filtros si existen
+    if query:
+        movimientos = movimientos.filter(
+            Q(producto__sku__icontains=query) |
+            Q(referencia_operacion__icontains=query) |
+            Q(producto__nombre__icontains=query)
+        )
+
+    if bodega_id:
+        # Buscamos la bodega tanto si fue origen como si fue destino
+        movimientos = movimientos.filter(
+            Q(bodega_origen_id=bodega_id) | Q(bodega_destino_id=bodega_id)
+        )
+
+    if tipo:
+        movimientos = movimientos.filter(tipo_movimiento=tipo)
+
+    # 3. Retornar solo la tabla si es petición HTMX
     if request.headers.get('HX-Request'):
         return render(request, 'inventario/partials/_tabla_movimientos.html', {'movimientos': movimientos})
 
-    return render(request, 'inventario/movimientos.html', {'movimientos': movimientos})
+    # 4. Retornar página completa si es carga normal
+    bodegas = Bodega.objects.all().order_by('nombre')
+
+    return render(request, 'inventario/movimientos.html', {
+        'movimientos': movimientos,
+        'bodegas': bodegas,
+        'query': query
+    })
 
 @login_required
 @permission_required('inventario.add_movimientoinventario', raise_exception=True)

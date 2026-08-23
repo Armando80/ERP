@@ -25,20 +25,52 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-4">
 
-        <!-- Filtros Rápidos (Opcional para el futuro) -->
-        <div class="d-flex gap-3 mb-4">
-            <input type="text" class="form-control w-25" placeholder="Buscar por SKU o Folio...">
-            <select class="form-select w-auto">
-                <option value="">Todos los Almacenes</option>
-                <option value="MP">Almacén General (MP)</option>
-                <option value="PT">Almacén PT</option>
-            </select>
-            <select class="form-select w-auto">
-                <option value="">Todos los Tipos</option>
-                <option value="ENTRADA">Solo Entradas</option>
-                <option value="SALIDA">Solo Salidas</option>
-            </select>
+    <!-- Filtros Rápidos y Buscador -->
+    <div class="d-flex flex-wrap gap-3 mb-4" id="filtros-kardex">
+        <div class="input-group w-auto flex-grow-1" style="max-width: 300px;">
+            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Buscar por SKU o Folio..."
+                    value="{{ query }}"
+                    hx-get="{% url 'inventario:movimientos' %}"
+                    hx-trigger="keyup changed delay:400ms, search"
+                    hx-target="#tabla-movimientos-container"
+                    hx-include="#filtros-kardex [name]">
         </div>
+
+        <select name="bodega" class="form-select w-auto text-muted small"
+                hx-get="{% url 'inventario:movimientos' %}"
+                hx-trigger="change"
+                hx-target="#tabla-movimientos-container"
+                hx-include="#filtros-kardex [name]">
+            <option value="">Todos los Almacenes</option>
+            {% for bodega in bodegas %}
+                <option value="{{ bodega.id }}">{{ bodega.nombre }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="tipo" class="form-select w-auto text-muted small"
+                hx-get="{% url 'inventario:movimientos' %}"
+                hx-trigger="change"
+                hx-target="#tabla-movimientos-container"
+                hx-include="#filtros-kardex [name]">
+            <option value="">Todos los Tipos</option>
+            <option value="E">Solo Entradas</option>
+            <option value="S">Solo Salidas</option>
+            <option value="T">Transferencias</option>
+        </select>
+
+        <!-- Indicador de carga de HTMX -->
+        <div id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-primary my-auto" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+
+        <!-- Estilo extra para el indicador de HTMX -->
+        <style>
+            .htmx-indicator { display: none; }
+            .htmx-request .htmx-indicator { display: inline-block; }
+            .htmx-request.htmx-indicator { display: inline-block; }
+        </style>
 
                 <!-- Este div escucha el evento 'movimientoGuardado' y le pide al servidor la tabla actualizada -->
         <div id="tabla-movimientos-container"
