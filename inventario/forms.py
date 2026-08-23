@@ -38,7 +38,7 @@ class ProductoForm(forms.ModelForm):
                 'class': 'form-select'
             }),
             'moneda_base_venta': forms.Select(attrs={
-                'class': 'form-select'
+                'class': 'form-select border-secondary border-opacity-25'
             }),
             'descripcion': forms.Textarea(attrs={
                 'class': 'form-control',

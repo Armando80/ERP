@@ -40,13 +40,16 @@
             {{ form.tipo }}
         </div>
         <div class="col-md-6">
-            <label for="{{ form.unidad_medida.id_for_label }}" class="form-label small fw-semibold text-dark">U.M. <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold small text-secondary">U.M.</label>
             {{ form.unidad_medida }}
+            {% if form.unidad_medida.errors %}
+                <div class="text-danger small mt-1">{{ form.unidad_medida.errors }}</div>
+            {% endif %}
         </div>
     </div>
 
     <h6 class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-2">Configuración Financiera</h6>
-    
+
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <label for="{{ form.moneda_base_costo.id_for_label }}" class="form-label small fw-semibold text-dark">Moneda (Costo) <span class="text-danger">*</span></label>
