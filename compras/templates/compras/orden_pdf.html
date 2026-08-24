@@ -1,0 +1,186 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Orden de Compra - {{ orden.folio }}</title>
+    <style>
+        /* Configuración de la hoja A4 */
+        @page {
+            size: A4;
+            margin: 1.5cm;
+            @bottom-left {
+                content: "Esto no es un comprobante fiscal. If you have any doubt about your PO send e-mail: aromero@decorlata.com";
+                font-size: 10px;
+                color: #666;
+            }
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 10px;
+                color: #666;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            color: #333;
+        }
+
+        /* Encabezado */
+        .header {
+            width: 100%;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .header table { width: 100%; }
+        .logo { max-height: 70px; }
+        .company-info { text-align: right; font-size: 11px; }
+        .order-title { font-size: 24px; font-weight: bold; color: #1e293b; margin-top: 0; margin-bottom: 5px; }
+
+        /* Cajas de Información */
+        .info-section { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+        .info-section td { vertical-align: top; width: 50%; padding: 5px; }
+        .box { border: 1px solid #cbd5e1; padding: 12px; border-radius: 4px; background-color: #f8fafc; height: 100px; }
+        .box h4 { margin-top: 0; margin-bottom: 8px; font-size: 12px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; text-transform: uppercase;}
+
+        /* Tabla de Productos */
+        .table-items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .table-items th { background-color: #1e293b; color: white; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; }
+        .table-items td { border-bottom: 1px solid #e2e8f0; padding: 8px; font-size: 11px; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+
+        /* Totales */
+        .totals-container { width: 100%; overflow: hidden; }
+        .totals { width: 40%; float: right; border-collapse: collapse; }
+        .totals td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+        .totals .grand-total { font-size: 14px; font-weight: bold; border-top: 2px solid #1e293b; color: #1e293b; }
+
+        /* Pie de página y Firmas */
+        .footer { margin-top: 40px; clear: both; }
+        .signatures { width: 100%; border-collapse: collapse; margin-top: 60px; text-align: center; }
+        .signatures td { width: 50%; padding: 10px; }
+        .signature-line { border-top: 1px solid #64748b; width: 70%; margin: 0 auto; padding-top: 5px; font-weight: bold; font-size: 11px; color: #475569;}
+    </style>
+</head>
+<body>
+
+    <!-- 1. ENCABEZADO -->
+    <div class="header">
+        <table>
+            <tr>
+                <td>
+                    <!-- Asegúrate de que el logo esté en tu carpeta estática -->
+                    <img src="{% static 'general/img/logo_decorlata.png' %}" class="logo" alt="Decorlata">
+                </td>
+                <td class="company-info">
+                    <h1 class="order-title">ORDEN DE COMPRA / PURCHASE ORDER</h1>
+                    <strong>Decorlata S.A. de C.V.</strong><br>
+                    <!-- Sistema de Control Interno ERP<br> -->
+                    Fecha de Emisión / Date: {{ orden.fecha_emision|date:"d/m/Y" }}<br>
+                    <strong>Folio / PO Number: {{ orden.folio }}</strong>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2. SECCIÓN DE DATOS (Proveedor y Logística) -->
+    <table class="info-section">
+        <tr>
+            <td style="padding-right: 10px;">
+                <div class="box">
+                    <h4>Datos del Proveedor / Vendor Information</h4>
+                    <strong>{{ orden.proveedor.razon_social }}</strong><br>
+                    <strong>RFC:</strong> {{ orden.proveedor.rfc | default:"N/A" }}<br>
+                    <strong>Tel:</strong> {{ orden.proveedor.telefono|default:"N/A" }}<br>
+                    <strong>Dirección / Addr.:</strong> {{ orden.proveedor.direccion }}
+                </div>
+            </td>
+            <td style="padding-left: 10px;">
+                <div class="box">
+                    <h4>Facturar a: / Bill To:</h4>
+                    <strong>DECORLATA</strong><br>
+                    <strong>RFC:</strong> DEC150115B42<br>
+                    <strong>Dirección / Addr.:</strong> Gral. Mariano Ruiz, 121
+                        Santiago Cuautlalpan, 56255, Texcoco, Estado de México, México. Tel. +52 55 6499 3375<br>
+                    <!-- <strong>Moneda:</strong> {{ orden.moneda.codigo }} ({{ orden.moneda.nombre }})<br> -->
+                    {% if orden.estado == 'RECIBIDA' %}
+                        <strong>TC Aplicado:</strong> ${{ orden.tipo_cambio_aplicado }}
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 3. PARTIDAS DE LA COMPRA -->
+    <table class="table-items">
+        <thead>
+            <tr>
+                <th style="width: 15%;">SKU</th>
+                <th style="width: 40%;">Descripción del Producto / Prod.</th>
+                <th style="width: 10%;" class="text-center">Cant./ Qty.</th>
+                <th style="width: 15%;" class="text-right">Precio U. / U.P.</th>
+                <th style="width: 20%;" class="text-right">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for detalle in detalles %}
+            <tr>
+                <td>{{ detalle.producto.sku }}</td>
+                <td>{{ detalle.producto.nombre }}</td>
+                <td class="text-center">{{ detalle.cantidad|floatformat:"2g" }}{{" "}}{{ detalle.producto.unidad_medida.codigo|default:"" }}</td>
+                <td class="text-right">{{ orden.moneda.simbolo|default:"$" }}{{ detalle.precio_unitario|floatformat:"2g" }}</td>
+                <td class="text-right">{{ orden.moneda.simbolo|default:"$" }}{{ detalle.subtotal_linea|floatformat:"2g" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 4. TOTALES -->
+    <div class="totals-container">
+        <table class="totals">
+            <tr>
+                <td>Subtotal:</td>
+                <td class="text-right">{{ orden.moneda.simbolo|default:"$" }}{{ orden.subtotal|floatformat:"2g" }}</td>
+            </tr>
+            <tr>
+                <td>IVA (16%):</td>
+                <td class="text-right">{{ orden.moneda.simbolo|default:"$" }}{{ orden.impuestos|floatformat:"2g" }}</td>
+            </tr>
+            <tr class="grand-total">
+                <td>TOTAL ({{ orden.moneda.codigo }}):</td>
+                <td class="text-right">{{ orden.moneda.simbolo|default:"$" }}{{ orden.total|floatformat:"2g" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 5. PIE DE PÁGINA (Observaciones y Firmas) -->
+    <div class="footer">
+        <p style="font-size: 11px;">
+            <strong>Observaciones: / Notes:</strong><br>
+            {{ orden.observaciones|default:"Sin observaciones adicionales. Entregar mercancía en horarios de almacén." }}<br>
+            El embarque debera acompañarse de la presente orden de compra, así<br>
+            como de la factura correspondiente y certificado de calidad.<br>
+            / The shipment must be accompanied by this purchase order,<br>
+            packing list and the corresponding invoice.
+        </p>
+
+        <table class="signatures">
+            <tr>
+                <td>
+                    <div class="signature-line">
+                        Autorizado por (Compras)
+                    </div>
+                </td>
+                <td>
+                    <div class="signature-line">
+                        Firma de Recepción (Almacén)
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>

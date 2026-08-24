@@ -68,11 +68,14 @@
                             {{ orden.moneda.simbolo|default:"$" }}{{ orden.total|floatformat:2 }} <small class="text-muted">{{ orden.moneda.codigo }}</small>
                         </td>
                         <td class="text-end pe-4">
-                            <!-- Botón para ver detalles (Lo conectaremos después) -->
+                            <!-- Botón para ver detalles (Lo conectaremos después)
                             <button class="btn btn-sm btn-light text-primary border shadow-sm" title="Ver Detalles">
                                 <i class="bi bi-eye"></i>
-                            </button>
-
+                            </button> -->
+                            <!-- Botón para Generar PDF -->
+                            <a href="{% url 'compras:orden_pdf' orden.id %}" target="_blank" class="btn btn-sm btn-light text-danger border shadow-sm" title="Descargar PDF">
+                                <i class="bi bi-file-earmark-pdf-fill"></i>
+                            </a>
                             <!-- Botón de Recibir (Envuelto en un form POST seguro) -->
                             {% if orden.estado != 'RECIBIDA' %}
                             <form action="{% url 'compras:recibir_orden' orden.id %}" method="POST" class="d-inline">

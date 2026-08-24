@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.contrib import messages
@@ -14,6 +15,8 @@ from inventario.models import MovimientoInventario, Producto, Bodega
 from general.models import TipoCambio, Moneda
 from decimal import Decimal
 from .forms import ProveedorForm
+from weasyprint import HTML
+import tempfile
 
 def procesar_recepcion_compra(orden_id, usuario):
     """
@@ -109,7 +112,7 @@ def crear_orden_compra_view(request):
                     proveedor_id=proveedor_id,
                     bodega_destino_id=bodega_id,
                     moneda_id=moneda_id,
-                    folio=generar_folio_compra() 
+                    folio=generar_folio_compra()
                 )
 
                 subtotal_global = 0
@@ -260,3 +263,34 @@ def guardar_proveedor_view(request, pk=None):
         form = ProveedorForm(instance=proveedor)
 
     return render(request, 'compras/partials/_proveedor_form.html', {'form': form, 'proveedor': proveedor})
+
+@login_required
+def descargar_orden_pdf_view(request, pk):
+    """
+    Toma los datos de la Orden de Compra, los inyecta en una plantilla HTML
+    y utiliza WeasyPrint para compilar el documento PDF final.
+    """
+    # 1. Obtener la orden y optimizar la consulta de sus detalles
+    orden = get_object_or_404(OrdenCompra_Maestro.objects.select_related('proveedor', 'bodega_destino', 'moneda'), pk=pk)
+
+    # 2. Preparar el contexto que enviaremos a la plantilla
+    context = {
+        'orden': orden,
+        'detalles': orden.detalles.select_related('producto').all(),
+    }
+
+    # 3. Renderizar el HTML a un string de Python
+    html_string = render_to_string('compras/orden_pdf.html', context)
+
+    # 4. Configurar WeasyPrint (base_url es crucial para que encuentre tu logo en la carpeta static)
+    html = HTML(string=html_string, base_url=request.build_absolute_uri())
+    pdf_generado = html.write_pdf()
+
+    # 5. Crear la respuesta HTTP para devolver el archivo PDF
+    response = HttpResponse(pdf_generado, content_type='application/pdf')
+
+    # 'inline' abrirá el PDF en una pestaña nueva del navegador. 
+    # Si quieres que se descargue automáticamente, cambia 'inline' por 'attachment'.
+    response['Content-Disposition'] = f'inline; filename="{orden.folio}.pdf"'
+
+    return response

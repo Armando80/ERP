@@ -17,6 +17,9 @@ urlpatterns = [
     # NUEVA RUTA PARA RECIBIR LA ORDEN
     path('recibir/<int:pk>/', views.recibir_orden_view, name='recibir_orden'),
 
+    # NUEVA RUTA PARA DESCARGAR PDF
+    path('orden/<int:pk>/pdf/', views.descargar_orden_pdf_view, name='orden_pdf'),
+
     # NUEVA RUTA PARA EL CATÁLOGO DE PROVEEDORES
     path('proveedores/', views.proveedores_catalogo_view, name='proveedores_catalogo'),
     path('proveedores/nuevo/', views.guardar_proveedor_view, name='proveedor_crear'),
