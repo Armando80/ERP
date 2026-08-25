@@ -41,15 +41,17 @@ class Producto(models.Model):
     Modelo Maestro de Productos.
     Diferencia Materia Prima de Producto Terminado según tus catálogos.
     """
-    
+
     # ENUM para tipo de producto (basado en CatalogoDeMateriales y MatPrima)
     MATERIA_PRIMA = 'MP'
     COMPONENTE = 'CP'
     PRODUCTO_TERMINADO = 'PT'
+    HOJALATA = 'HJ'
     TIPO_PRODUCTO_CHOICES = [
-        (MATERIA_PRIMA, 'Materia Prima (Químicos/Hojalata)'),
-        (COMPONENTE, 'Componente (Válvulas/Tapas)'),
-        (PRODUCTO_TERMINADO, 'Producto Terminado (Botes/Aerosol)'),
+        (MATERIA_PRIMA, 'Materia Prima (Materiales de Empaque/Cobre/Bzniz)'),
+        (COMPONENTE, 'Componente (Conos/Fondos/Boq./Válvulas)'),
+        (PRODUCTO_TERMINADO, 'Producto Terminado (Botes Aerosol,Alcoholero,Pintura)'),
+        (HOJALATA, 'Hojalata en cuadro/litografia'),
     ]
 
     nombre = models.CharField(max_length=255)
