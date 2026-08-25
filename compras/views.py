@@ -154,8 +154,8 @@ def crear_orden_compra_view(request):
         'proveedores': Proveedor.objects.filter(activo=True).order_by('razon_social'),
         'bodegas': Bodega.objects.all().order_by('nombre'),
         'monedas': Moneda.objects.all().order_by('codigo'),
-        # Filtramos para no incluir Productos Terminados (PT)
-        'productos': Producto.objects.exclude(tipo='PT').order_by('nombre')
+        # Filtramos para no incluir Productos Terminados (PT) y Plantillas (CC)
+        'productos': Producto.objects.exclude(tipo__in=['PT', 'CC']).order_by('nombre'),
     }
 
     return render(request, 'compras/orden_compra_form.html', context)

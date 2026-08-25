@@ -46,12 +46,16 @@ class Producto(models.Model):
     MATERIA_PRIMA = 'MP'
     COMPONENTE = 'CP'
     PRODUCTO_TERMINADO = 'PT'
-    HOJALATA = 'HJ'
+    HOJALATA = 'HL'
+    HOJA_LITOGRAFIADA = 'LL'
+    PLANTILLA = 'CC'
     TIPO_PRODUCTO_CHOICES = [
         (MATERIA_PRIMA, 'Materia Prima (Materiales de Empaque/Cobre/Bzniz)'),
         (COMPONENTE, 'Componente (Conos/Fondos/Boq./Válvulas)'),
-        (PRODUCTO_TERMINADO, 'Producto Terminado (Botes Aerosol,Alcoholero,Pintura)'),
-        (HOJALATA, 'Hojalata en cuadro/litografia'),
+        (PRODUCTO_TERMINADO, 'Bote Terminado (Aerosol,Alcoholero,Pintura)'),
+        (HOJALATA, 'Hojalata Plain'),
+        (HOJA_LITOGRAFIADA, 'Litografiada / Barnizada'),
+        (PLANTILLA, 'Cuerpos Cortados'),
     ]
 
     nombre = models.CharField(max_length=255)
@@ -115,7 +119,7 @@ class Stock(models.Model):
 
 class MovimientoInventario(models.Model):
     """Kardex: Registro detallado de entradas, salidas y transferencias."""
-    
+
     ENTRADA = 'E'
     SALIDA = 'S'
     TRANSFERENCIA = 'T'
@@ -129,18 +133,18 @@ class MovimientoInventario(models.Model):
 
     fecha = models.DateTimeField(auto_now_add=True)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
-    
+
     # Origen y Destino para transferencias y trazabilidad
     bodega_origen = models.ForeignKey(Bodega, on_delete=models.PROTECT, related_name='movimientos_origen', blank=True, null=True)
     bodega_destino = models.ForeignKey(Bodega, on_delete=models.PROTECT, related_name='movimientos_destino', blank=True, null=True)
-    
+
     tipo_movimiento = models.CharField(max_length=1, choices=TIPO_MOVIMIENTO_CHOICES)
     cantidad = models.DecimalField(max_digits=18, decimal_places=6)
-    
+
     # Trazabilidad Industrial (Lotes y Caducidades)
     lote = models.CharField(max_length=50, blank=True, null=True, help_text="Número de Lote (crítico para Químicos/Componentes)")
     fecha_caducidad = models.DateField(blank=True, null=True, help_text="Fecha de caducidad aplicable según el lote")
-    
+
     # Costo asociado al movimiento
     moneda_original = models.ForeignKey(
         Moneda, on_delete=models.PROTECT, blank=True, null=True,
