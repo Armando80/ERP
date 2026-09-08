@@ -46,16 +46,18 @@ class Producto(models.Model):
     MATERIA_PRIMA = 'MP'
     COMPONENTE = 'CP'
     PRODUCTO_TERMINADO = 'PT'
-    HOJALATA = 'HL'
-    HOJA_LITOGRAFIADA = 'LL'
+    HOJALATA_ROLLO = 'HR'
+    HOJA_LITOGRAFIADA = 'HL'
+    HOJA_CORTADA = 'HC'
     PLANTILLA = 'CC'
     TIPO_PRODUCTO_CHOICES = [
         (MATERIA_PRIMA, 'Materia Prima (Materiales de Empaque/Cobre/Bzniz)'),
         (COMPONENTE, 'Componente (Conos/Fondos/Boq./Válvulas)'),
         (PRODUCTO_TERMINADO, 'Bote Terminado (Aerosol,Alcoholero,Pintura)'),
-        (HOJALATA, 'Hojalata Plain'),
-        (HOJA_LITOGRAFIADA, 'Litografiada / Barnizada'),
-        (PLANTILLA, 'Cuerpos Cortados'),
+        (HOJALATA_ROLLO, 'Hojalata Rollo'),
+        (HOJA_LITOGRAFIADA, 'Hoja (Litografiada / Barnizada)'),
+        (HOJA_CORTADA, 'Hoja Cortada Plain'),
+        (PLANTILLA, 'Plantilla(Cuerpos Cortados)'),
     ]
 
     nombre = models.CharField(max_length=255)

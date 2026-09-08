@@ -24,11 +24,14 @@
                         </td>
                         <td>
                             {% if producto.tipo == 'MP' %}
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">Materia Prima</span>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">Materia Prima</span>
                             {% elif producto.tipo == 'CP' %}
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Componente</span>
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">Componente</span>
+                            {% elif producto.tipo == 'PT' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Producto Terminado</span>
                             {% else %}
-                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Prod. Terminado</span>
+                                <!-- Etiqueta genérica para toda la familia de Hojalatas (HR, HL, HC, CC) -->
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Hojalata</span>
                             {% endif %}
                         </td>
                         <td>{{ producto.unidad_medida.codigo }}</td>
