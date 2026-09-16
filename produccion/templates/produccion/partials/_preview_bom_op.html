@@ -1,0 +1,84 @@
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h6 class="fw-bold text-dark mb-0">
+                <i class="bi bi-calculator me-2 text-primary"></i>Desglose Proyectado de Insumos (Receta: {{ bom.cantidad_base|floatformat:0 }} {{ producto.unidad_medida.codigo }})
+            </h6>
+            <small class="text-muted">Insumos requeridos para fabricar {{ cantidad|floatformat:2 }} {{ producto.unidad_medida.codigo }} de {{ producto.nombre }}</small>
+        </div>
+        <div>
+            {% if not todos_disponibles and bodega_origen %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                    <i class="bi bi-exclamation-octagon-fill me-1"></i>Stock insuficiente en almacén de insumos
+                </span>
+            {% elif bodega_origen %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                    <i class="bi bi-check-circle-fill me-1"></i>Stock suficiente verificado
+                </span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light text-muted text-uppercase" style="font-size: 0.75rem;">
+                    <tr>
+                        <th class="ps-3">Insumo Requerido</th>
+                        <th class="text-center">Cant. Requerida</th>
+                        {% if bodega_origen %}
+                            <th class="text-center">Stock Disponible</th>
+                            <th class="text-center">Disponibilidad</th>
+                        {% endif %}
+                        <th class="text-end">Costo Prom. MXN</th>
+                        <th class="text-end pe-3">Subtotal Estimado</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary">
+                    {% for item in insumos_info %}
+                    <tr>
+                        <td class="ps-3">
+                            <span class="fw-bold text-dark d-block">{{ item.insumo.nombre }}</span>
+                            <span class="badge bg-light text-secondary border font-monospace">{{ item.insumo.sku }}</span>
+                        </td>
+                        <td class="text-center fw-bold text-dark font-monospace">
+                            {{ item.cantidad_requerida|floatformat:4 }} <small class="text-muted">{{ item.insumo.unidad_medida.codigo }}</small>
+                        </td>
+                        {% if bodega_origen %}
+                            <td class="text-center font-monospace">
+                                {{ item.stock_disponible|floatformat:4 }} <small class="text-muted">{{ item.insumo.unidad_medida.codigo }}</small>
+                            </td>
+                            <td class="text-center">
+                                {% if item.suficiente %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">OK</span>
+                                {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Faltante</span>
+                                {% endif %}
+                            </td>
+                        {% endif %}
+                        <td class="text-end font-monospace text-muted">
+                            ${{ item.costo_unitario|floatformat:4 }}
+                        </td>
+                        <td class="text-end pe-3 font-monospace fw-semibold text-dark">
+                            ${{ item.costo_linea|floatformat:4 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-3 text-muted">No hay insumos definidos en esta receta.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="{% if bodega_origen %}4{% else %}2{% endif %}" class="text-end text-muted text-uppercase">Costo Total Estimado Insumos:</th>
+                        <th colspan="2" class="text-end pe-3 font-monospace fs-6 text-dark">${{ costo_estimado_total|floatformat:4 }} MXN</th>
+                    </tr>
+                    <tr>
+                        <th colspan="{% if bodega_origen %}4{% else %}2{% endif %}" class="text-end text-primary text-uppercase">Costo Unitario Teórico Estimado:</th>
+                        <th colspan="2" class="text-end pe-3 font-monospace fs-6 fw-bold text-primary">${{ costo_unitario_estimado|floatformat:4 }} MXN / {{ producto.unidad_medida.codigo }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>

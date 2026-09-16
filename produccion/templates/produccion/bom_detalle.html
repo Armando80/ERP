@@ -1,0 +1,134 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Receta: {{ bom.producto_terminado.nombre }} | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'produccion:lista_boms' %}" class="text-decoration-none text-muted">Fórmulas y Recetas</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ bom.producto_terminado.sku }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="fw-bold text-dark mb-0">{{ bom.producto_terminado.nombre }}</h2>
+            {% if bom.activo %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Activa</span>
+            {% else %}
+                <span class="badge bg-secondary bg-opacity-10 text-muted border px-2 py-1">Inactiva</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="{% url 'produccion:lista_boms' %}" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Volver al Catálogo
+        </a>
+        <a href="{% url 'produccion:crear_orden' %}?producto={{ bom.producto_terminado.id }}" class="btn btn-primary shadow-sm">
+            <i class="bi bi-gear-wide-connected me-1"></i> Fabricar Producto (Nueva OP)
+        </a>
+    </div>
+</div>
+
+<!-- Tarjetas de Información General de la Receta -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <span class="text-muted small text-uppercase fw-bold d-block mb-1">Producto a Fabricar</span>
+                <h5 class="fw-bold text-dark mb-1">{{ bom.producto_terminado.nombre }}</h5>
+                <p class="text-muted small mb-2">SKU: <strong class="font-monospace text-dark">{{ bom.producto_terminado.sku }}</strong></p>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-light text-secondary border">{{ bom.producto_terminado.get_tipo_display }}</span>
+                    <span class="badge bg-light text-dark border">U.M.: {{ bom.producto_terminado.unidad_medida.codigo }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <span class="text-muted small text-uppercase fw-bold d-block mb-1">Parámetros de Fabricación</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small">Cantidad Base:</span>
+                    <span class="fw-bold fs-5 text-dark">{{ bom.cantidad_base|floatformat:2 }} <small class="fs-6 fw-normal text-muted">{{ bom.producto_terminado.unidad_medida.codigo }}</small></span>
+                </div>
+                <div class="border-top pt-2">
+                    <span class="text-muted small d-block mb-1">Instrucciones de Proceso:</span>
+                    <p class="small text-secondary mb-0">{{ bom.descripcion_proceso|default:"Sin especificaciones adicionales registradas." }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10 border border-primary border-opacity-25">
+            <div class="card-body d-flex flex-column justify-content-between">
+                <div>
+                    <span class="text-primary small text-uppercase fw-bold d-block mb-1">Costeo Teórico (Insumos)</span>
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <span class="small text-muted">Costo Base ({{ bom.cantidad_base|floatformat:0 }} pzas):</span>
+                        <span class="fw-bold font-monospace text-dark fs-6">${{ bom.costo_estimado_total_mxn|floatformat:4 }} MXN</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-baseline">
+                        <span class="small text-primary fw-bold">Costo Unitario Teórico:</span>
+                        <span class="fw-bold font-monospace text-primary fs-4">${{ bom.costo_estimado_unitario_mxn|floatformat:4 }} MXN</span>
+                    </div>
+                </div>
+                <div class="text-muted small mt-2">
+                    <i class="bi bi-clock-history me-1"></i> Costo actual del PT en Almacén: <strong>${{ bom.producto_terminado.costo_promedio_mxn|floatformat:4 }} MXN</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sección de Insumos / Lista de Materiales -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold text-dark mb-0">Materias Primas y Componentes Requeridos</h5>
+            <small class="text-muted">Desglose de componentes para fabricar {{ bom.cantidad_base|floatformat:2 }} {{ bom.producto_terminado.unidad_medida.codigo }} de este producto.</small>
+        </div>
+    </div>
+    <div class="card-body p-0" id="tabla-insumos-container">
+        {% include 'produccion/partials/_tabla_insumos_bom.html' %}
+    </div>
+</div>
+
+<!-- Formulario Rápido para Agregar Insumo (HTMX) -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light border-bottom py-2">
+        <h6 class="fw-bold text-dark mb-0"><i class="bi bi-plus-circle me-2 text-primary"></i>Agregar Insumo a la Receta</h6>
+    </div>
+    <div class="card-body p-3">
+        <form hx-post="{% url 'produccion:agregar_insumo_bom' bom.id %}"
+              hx-target="#tabla-insumos-container"
+              hx-on::after-request="if(event.detail.successful) this.reset();"
+              class="row g-3 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-muted">{{ insumo_form.materia_prima.label }}</label>
+                {{ insumo_form.materia_prima }}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">{{ insumo_form.cantidad_requerida.label }}</label>
+                {{ insumo_form.cantidad_requerida }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">{{ insumo_form.porcentaje_merma.label }}</label>
+                {{ insumo_form.porcentaje_merma }}
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary shadow-sm">
+                    <i class="bi bi-plus-lg me-1"></i> Añadir Insumo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

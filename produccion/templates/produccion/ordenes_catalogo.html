@@ -1,0 +1,76 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Órdenes de Producción | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Producción</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Órdenes de Producción</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">Órdenes de Producción (OP)</h2>
+    </div>
+
+    <div>
+        <a href="{% url 'produccion:crear_orden' %}" class="btn btn-primary px-4 shadow-sm">
+            <i class="bi bi-plus-lg me-2"></i>Nueva Orden de Producción
+        </a>
+    </div>
+</div>
+
+<!-- Bloque de Mensajes del Sistema -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Barra de Filtros y Búsqueda en Tiempo Real con HTMX -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        <form id="filtro-ordenes-form"
+              class="row g-2 align-items-center"
+              hx-get="{% url 'produccion:lista_ordenes' %}"
+              hx-trigger="submit, change from:select, keyup delay:350ms from:input"
+              hx-target="#tabla-ordenes-container">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text"
+                           class="form-control border-start-0 ps-0"
+                           placeholder="Buscar por folio, producto, SKU o lote..."
+                           name="q"
+                           value="{{ query }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select name="estado" class="form-select">
+                    <option value="">-- Todos los Estados --</option>
+                    <option value="PLA" {% if estado_filtro == 'PLA' %}selected{% endif %}>Planeadas / En Espera</option>
+                    <option value="PRO" {% if estado_filtro == 'PRO' %}selected{% endif %}>En Proceso de Fabricación</option>
+                    <option value="TER" {% if estado_filtro == 'TER' %}selected{% endif %}>Terminadas (Kardex Afectado)</option>
+                    <option value="CAN" {% if estado_filtro == 'CAN' %}selected{% endif %}>Canceladas</option>
+                </select>
+            </div>
+            <div class="col-md-3 text-md-end">
+                <a href="{% url 'produccion:lista_ordenes' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar Filtros
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Contenedor Reactivo de Órdenes -->
+<div class="card border-0 shadow-sm" id="tabla-ordenes-container">
+    {% include 'produccion/partials/_tabla_ordenes.html' %}
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+            <tr>
+                <th class="ps-4">Insumo / Materia Prima</th>
+                <th>Clasificación</th>
+                <th class="text-center">Cant. Requerida</th>
+                <th class="text-center">% Merma</th>
+                <th class="text-center">Cant. Efectiva</th>
+                <th class="text-end">Costo Prom. Unitario</th>
+                <th class="text-end">Costo Línea (MXN)</th>
+                <th class="text-center pe-4" style="width: 80px;">Acción</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary small">
+            {% for insumo in bom.insumos.all %}
+            <tr>
+                <td class="ps-4">
+                    <span class="fw-bold text-dark d-block">{{ insumo.materia_prima.nombre }}</span>
+                    <span class="badge bg-light text-secondary border font-monospace">{{ insumo.materia_prima.sku }}</span>
+                </td>
+                <td>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                        {{ insumo.materia_prima.get_tipo_display }}
+                    </span>
+                </td>
+                <td class="text-center fw-semibold text-dark">
+                    {{ insumo.cantidad_requerida|floatformat:4 }} <small class="text-muted">{{ insumo.materia_prima.unidad_medida.codigo }}</small>
+                </td>
+                <td class="text-center">
+                    {% if insumo.porcentaje_merma > 0 %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">
+                            +{{ insumo.porcentaje_merma|floatformat:1 }}%
+                        </span>
+                    {% else %}
+                        <span class="text-muted">0%</span>
+                    {% endif %}
+                </td>
+                <td class="text-center fw-bold text-dark">
+                    {{ insumo.cantidad_con_merma|floatformat:4 }} <small class="text-muted">{{ insumo.materia_prima.unidad_medida.codigo }}</small>
+                </td>
+                <td class="text-end text-dark font-monospace">
+                    ${{ insumo.materia_prima.costo_promedio_mxn|floatformat:4 }}
+                </td>
+                <td class="text-end fw-bold text-dark font-monospace">
+                    ${{ insumo.costo_estimado_linea_mxn|floatformat:4 }}
+                </td>
+                <td class="text-center pe-4">
+                    <button class="btn btn-sm btn-outline-danger shadow-sm border-0"
+                            title="Eliminar Insumo"
+                            hx-post="{% url 'produccion:eliminar_insumo_bom' insumo.id %}"
+                            hx-target="#tabla-insumos-container"
+                            hx-confirm="¿Estás seguro de eliminar '{{ insumo.materia_prima.nombre }}' de esta receta?">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-4 text-muted">
+                    <i class="bi bi-box-seam fs-2 d-block mb-1 opacity-50"></i>
+                    Esta receta aún no tiene insumos registrados. Añade materias primas o componentes abajo.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if bom.insumos.exists %}
+        <tfoot class="table-light">
+            <tr>
+                <th colspan="6" class="text-end text-uppercase small text-muted">Costo Estimado Insumos (Base {{ bom.cantidad_base|floatformat:2 }} {{ bom.producto_terminado.unidad_medida.codigo }}):</th>
+                <th class="text-end font-monospace fs-6 fw-bold text-dark">${{ bom.costo_estimado_total_mxn|floatformat:4 }} MXN</th>
+                <th></th>
+            </tr>
+            <tr>
+                <th colspan="6" class="text-end text-uppercase small text-primary fw-bold">Costo Unitario Teórico Estimado:</th>
+                <th class="text-end font-monospace fs-6 fw-bold text-primary">${{ bom.costo_estimado_unitario_mxn|floatformat:4 }} MXN / {{ bom.producto_terminado.unidad_medida.codigo }}</th>
+                <th></th>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>

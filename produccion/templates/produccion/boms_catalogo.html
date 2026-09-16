@@ -1,0 +1,85 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Fórmulas y Recetas (BOM) | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Producción</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Fórmulas y Recetas (BOM)</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">Listas de Materiales (BOM)</h2>
+    </div>
+
+    <div>
+        <button class="btn btn-primary px-4 shadow-sm"
+                hx-get="{% url 'produccion:crear_bom' %}"
+                hx-target="#offcanvas-content"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasBOM">
+            <i class="bi bi-plus-lg me-2"></i>Nueva Receta (BOM)
+        </button>
+    </div>
+</div>
+
+<!-- Bloque de Búsqueda en Tiempo Real con HTMX -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text"
+                           class="form-control border-start-0 ps-0"
+                           placeholder="Buscar receta por nombre de producto o SKU..."
+                           name="q"
+                           value="{{ query }}"
+                           hx-get="{% url 'produccion:lista_boms' %}"
+                           hx-trigger="keyup changed delay:350ms"
+                           hx-target="#tabla-boms-container">
+                </div>
+            </div>
+            <div class="col-md-6 text-md-end text-muted small">
+                <i class="bi bi-info-circle me-1"></i> Una receta define las materias primas y componentes necesarios para fabricar un producto.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contenedor reactivo que se refresca al guardar un BOM -->
+<div class="card border-0 shadow-sm"
+     id="tabla-boms-container"
+     hx-get="{% url 'produccion:lista_boms' %}"
+     hx-trigger="bomGuardado from:body">
+    {% include 'produccion/partials/_tabla_boms.html' %}
+</div>
+
+<!-- Panel Lateral Offcanvas para Crear/Editar BOM -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBOM" style="width: 480px;">
+    <div class="offcanvas-header border-bottom bg-light">
+        <h5 class="offcanvas-title fw-bold text-dark">
+            <i class="bi bi-diagram-3 me-2 text-primary"></i>Configuración de Receta (BOM)
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-4" id="offcanvas-content">
+        <!-- El contenido se cargará dinámicamente vía HTMX -->
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 small">Cargando formulario...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.body.addEventListener('bomGuardado', function(evt) {
+        bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasBOM'))?.hide();
+        document.querySelectorAll('.offcanvas-backdrop').forEach(el => el.remove());
+    });
+</script>
+{% endblock %}

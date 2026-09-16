@@ -25,6 +25,8 @@ urlpatterns = [
     path('inventario/', include('inventario.urls')),
     # NUEVA RUTA: Conectamos el módulo de Compras
     path('compras/', include('compras.urls')),
+    # Módulo de Producción y Manufactura
+    path('produccion/', include('produccion.urls')),
 ]
 
 # ESTA LÍNEA ES OBLIGATORIA PARA QUE EL SERVIDOR ENCUENTRE LAS IMÁGENES

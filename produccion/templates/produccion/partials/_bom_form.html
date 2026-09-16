@@ -1,0 +1,43 @@
+<form hx-post="{% if bom %}{% url 'produccion:editar_bom' bom.id %}{% else %}{% url 'produccion:crear_bom' %}{% endif %}"
+      hx-target="#offcanvas-content">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label class="form-label small fw-bold text-muted">{{ form.producto_terminado.label }}</label>
+        {{ form.producto_terminado }}
+        {% if form.producto_terminado.errors %}
+            <div class="text-danger small mt-1">{{ form.producto_terminado.errors }}</div>
+        {% endif %}
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-bold text-muted">{{ form.cantidad_base.label }}</label>
+        {{ form.cantidad_base }}
+        <div class="form-text small">{{ form.cantidad_base.help_text }}</div>
+        {% if form.cantidad_base.errors %}
+            <div class="text-danger small mt-1">{{ form.cantidad_base.errors }}</div>
+        {% endif %}
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-bold text-muted">{{ form.descripcion_proceso.label }}</label>
+        {{ form.descripcion_proceso }}
+        {% if form.descripcion_proceso.errors %}
+            <div class="text-danger small mt-1">{{ form.descripcion_proceso.errors }}</div>
+        {% endif %}
+    </div>
+
+    <div class="form-check form-switch mb-4">
+        {{ form.activo }}
+        <label class="form-check-label small fw-bold" for="{{ form.activo.id_for_label }}">{{ form.activo.label }}</label>
+    </div>
+
+    <div class="d-grid gap-2 border-top pt-3">
+        <button type="submit" class="btn btn-primary shadow-sm">
+            <i class="bi bi-check-lg me-1"></i> Guardar Receta (BOM)
+        </button>
+        <button type="button" class="btn btn-light border" data-bs-dismiss="offcanvas">
+            Cancelar
+        </button>
+    </div>
+</form>

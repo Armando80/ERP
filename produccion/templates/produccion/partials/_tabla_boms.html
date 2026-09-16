@@ -1,0 +1,72 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+            <tr>
+                <th class="ps-4">Producto a Fabricar</th>
+                <th>Clasificación</th>
+                <th class="text-center">Cant. Base</th>
+                <th class="text-center">No. Insumos</th>
+                <th class="text-end">Costo Est. Total (MXN)</th>
+                <th class="text-end">Costo Est. Unitario (MXN)</th>
+                <th class="text-center">Estado</th>
+                <th class="text-end pe-4">Acciones</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary small">
+            {% for bom in boms %}
+            <tr>
+                <td class="ps-4">
+                    <span class="fw-bold text-dark d-block">{{ bom.producto_terminado.nombre }}</span>
+                    <span class="badge bg-light text-secondary border font-monospace">{{ bom.producto_terminado.sku }}</span>
+                </td>
+                <td>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                        {{ bom.producto_terminado.get_tipo_display }}
+                    </span>
+                </td>
+                <td class="text-center fw-semibold text-dark">
+                    {{ bom.cantidad_base|floatformat:2 }} <small class="text-muted">{{ bom.producto_terminado.unidad_medida.codigo }}</small>
+                </td>
+                <td class="text-center">
+                    <span class="badge rounded-pill bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2">
+                        {{ bom.insumos.count }} insumos
+                    </span>
+                </td>
+                <td class="text-end text-dark font-monospace">
+                    ${{ bom.costo_estimado_total_mxn|floatformat:4 }}
+                </td>
+                <td class="text-end fw-bold text-dark font-monospace">
+                    ${{ bom.costo_estimado_unitario_mxn|floatformat:4 }}
+                </td>
+                <td class="text-center">
+                    {% if bom.activo %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Activa</span>
+                    {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-muted border">Inactiva</span>
+                    {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                    <a href="{% url 'produccion:detalle_bom' bom.id %}" class="btn btn-sm btn-outline-primary shadow-sm" title="Ver Receta y Gestionar Insumos">
+                        <i class="bi bi-eye me-1"></i> Ver Receta
+                    </a>
+                    <button class="btn btn-sm btn-light border shadow-sm ms-1"
+                            title="Editar Datos Generales"
+                            hx-get="{% url 'produccion:editar_bom' bom.id %}"
+                            hx-target="#offcanvas-content"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#offcanvasBOM">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-5 text-muted">
+                    <i class="bi bi-clipboard2-x fs-1 d-block mb-2 opacity-50"></i>
+                    No se encontraron recetas o listas de materiales registradas.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,122 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Nueva Orden de Producción | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'produccion:lista_ordenes' %}" class="text-decoration-none text-muted">Producción</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Nueva Orden de Producción</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">Lanzar Orden de Producción</h2>
+    </div>
+
+    <div>
+        <a href="{% url 'produccion:lista_ordenes' %}" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Órdenes
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{% url 'produccion:crear_orden' %}">
+    {% csrf_token %}
+    <div class="row g-4">
+        <!-- Columna de Datos de la Orden -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-sliders me-2 text-primary"></i>Parámetros de la Orden</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">{{ form.producto_a_fabricar.label }} *</label>
+                        {{ form.producto_a_fabricar }}
+                        <div class="form-text small">Solo se muestran productos con una Lista de Materiales (BOM) activa.</div>
+                        {% if form.producto_a_fabricar.errors %}
+                            <div class="text-danger small mt-1">{{ form.producto_a_fabricar.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">{{ form.cantidad_a_producir.label }} *</label>
+                        {{ form.cantidad_a_producir }}
+                        {% if form.cantidad_a_producir.errors %}
+                            <div class="text-danger small mt-1">{{ form.cantidad_a_producir.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">{{ form.bodega_origen_insumos.label }} *</label>
+                            {{ form.bodega_origen_insumos }}
+                            {% if form.bodega_origen_insumos.errors %}
+                                <div class="text-danger small mt-1">{{ form.bodega_origen_insumos.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">{{ form.bodega_destino_pt.label }} *</label>
+                            {{ form.bodega_destino_pt }}
+                            {% if form.bodega_destino_pt.errors %}
+                                <div class="text-danger small mt-1">{{ form.bodega_destino_pt.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">{{ form.fecha_compromiso.label }}</label>
+                        {{ form.fecha_compromiso }}
+                        {% if form.fecha_compromiso.errors %}
+                            <div class="text-danger small mt-1">{{ form.fecha_compromiso.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">{{ form.observaciones.label }}</label>
+                        {{ form.observaciones }}
+                        {% if form.observaciones.errors %}
+                            <div class="text-danger small mt-1">{{ form.observaciones.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Generar Orden de Producción
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna de Previsualización Dinámica con HTMX -->
+        <div class="col-lg-7">
+            <div id="preview-insumos-op">
+                <div class="card border-0 shadow-sm text-center py-5 text-muted">
+                    <div class="card-body">
+                        <i class="bi bi-diagram-3 fs-1 d-block mb-3 opacity-50"></i>
+                        <h6 class="fw-bold">Previsualización de Materiales e Inventario</h6>
+                        <p class="small text-muted mb-0">Selecciona el producto y la cantidad para calcular automáticamente los requerimientos y verificar existencias en almacén.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    // Si la página se carga con un producto preseleccionado en la URL (?producto=XX), disparar la carga HTMX
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const productoParam = urlParams.get('producto');
+        const selectProducto = document.getElementById('id_producto_a_fabricar');
+        if (productoParam && selectProducto) {
+            selectProducto.value = productoParam;
+            htmx.trigger(selectProducto, 'change');
+        }
+    });
+</script>
+{% endblock %}
