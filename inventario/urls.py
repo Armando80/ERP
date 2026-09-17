@@ -32,4 +32,11 @@ urlpatterns = [
     path('movimientos/autorizaciones/<int:pk>/insumos/', views.detalle_insumos_entrega_view, name='detalle_insumos_entrega'),
     path('movimientos/autorizaciones/<int:pk>/autorizar/', views.autorizar_entrega_view, name='autorizar_entrega'),
     path('movimientos/autorizaciones/<int:pk>/rechazar/', views.rechazar_entrega_view, name='rechazar_entrega'),
+
+    # Rutas para Anulaciones de Movimientos de Kardex (Autorización Administrativa)
+    path('movimientos/<int:pk>/solicitar-anulacion/', views.solicitar_anulacion_modal_view, name='solicitar_anulacion_modal'),
+    path('movimientos/<int:pk>/enviar-anulacion/', views.enviar_solicitud_anulacion_view, name='enviar_solicitud_anulacion'),
+    path('movimientos/solicitudes-anulacion/', views.solicitudes_anulacion_view, name='solicitudes_anulacion'),
+    path('movimientos/solicitudes-anulacion/<int:pk>/autorizar/', views.autorizar_anulacion_view, name='autorizar_anulacion'),
+    path('movimientos/solicitudes-anulacion/<int:pk>/rechazar/', views.rechazar_anulacion_view, name='rechazar_anulacion'),
 ]

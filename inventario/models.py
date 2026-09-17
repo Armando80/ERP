@@ -170,12 +170,38 @@ class MovimientoInventario(models.Model):
     usuario = models.ForeignKey('auth.User', on_delete=models.PROTECT, help_text="Usuario que registró el movimiento")
     observaciones = models.TextField(blank=True, null=True)
 
+    # Control de Anulaciones y Contra-asientos (Storno)
+    es_anulado = models.BooleanField(
+        default=False,
+        help_text="Indica si este movimiento fue anulado formalmente mediante contra-asiento"
+    )
+    es_contraasiento = models.BooleanField(
+        default=False,
+        help_text="Indica si este movimiento es un contra-asiento de reversa para anular otro movimiento"
+    )
+    movimiento_relacionado = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='contraasientos',
+        help_text="Referencia al movimiento original si es contra-asiento, o al contra-asiento si fue anulado"
+    )
+
     class Meta:
         verbose_name = "Movimiento de Inventario (Kardex)"
         verbose_name_plural = "Movimientos de Inventario (Kardex)"
         ordering = ['-fecha'] # Ordenar por fecha descendente
 
     def __str__(self): return f"{self.fecha.strftime('%Y-%m-%d')} - {self.producto.sku} ({self.tipo_movimiento})"
+
+    @property
+    def tiene_solicitud_pendiente(self):
+        return self.solicitudes_anulacion.filter(estado='PEN').exists()
+
+    @property
+    def solicitud_pendiente(self):
+        return self.solicitudes_anulacion.filter(estado='PEN').first()
 
     # --- VALIDACIÓN CRÍTICA EN ADMINISTRADOR ---
     # Esto arrojará errores rojos bonitos en el Admin si el usuario intenta hacer algo imposible
@@ -205,3 +231,65 @@ class MovimientoInventario(models.Model):
                 disponible = stock.cantidad_disponible if stock else Decimal('0')
                 if self.cantidad > disponible:
                     raise ValidationError({'cantidad': f'Stock insuficiente en bodega de origen para transferir. Tienes {disponible}.'})
+
+
+class SolicitudAnulacionMovimiento(models.Model):
+    """
+    Solicitud formal de anulación de un movimiento en el Kardex.
+    Requiere obligatoriamente autorización de un usuario nivel Administrador.
+    """
+    PENDIENTE = 'PEN'
+    APROBADA = 'APR'
+    RECHAZADA = 'REC'
+    ESTADO_CHOICES = [
+        (PENDIENTE, 'Pendiente de Autorización'),
+        (APROBADA, 'Aprobada y Aplicada al Kardex'),
+        (RECHAZADA, 'Rechazada'),
+    ]
+
+    folio = models.CharField(max_length=30, unique=True, help_text="Folio secuencial ej: ANUL-2026-0001")
+    movimiento = models.ForeignKey(
+        MovimientoInventario,
+        on_delete=models.PROTECT,
+        related_name='solicitudes_anulacion',
+        help_text="Movimiento del Kardex que se solicita anular"
+    )
+    estado = models.CharField(max_length=3, choices=ESTADO_CHOICES, default=PENDIENTE)
+    motivo_solicitud = models.TextField(help_text="Justificación operativa obligatoria para solicitar la anulación")
+
+    usuario_solicita = models.ForeignKey(
+        'auth.User',
+        on_delete=models.PROTECT,
+        related_name='anulaciones_solicitadas',
+        help_text="Usuario que solicita la anulación"
+    )
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+
+    # Resolución administrativa
+    usuario_autoriza = models.ForeignKey(
+        'auth.User',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='anulaciones_autorizadas',
+        help_text="Administrador que aprobó o rechazó la solicitud"
+    )
+    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    notas_administrador = models.TextField(blank=True, null=True, help_text="Comentarios o justificación del administrador")
+
+    movimiento_contraasiento = models.ForeignKey(
+        MovimientoInventario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='solicitud_origen',
+        help_text="Movimiento inverso generado en el Kardex al aprobarse la anulación"
+    )
+
+    class Meta:
+        verbose_name = "Solicitud de Anulación de Movimiento"
+        verbose_name_plural = "Solicitudes de Anulación de Movimientos"
+        ordering = ['-fecha_solicitud']
+
+    def __str__(self):
+        return f"{self.folio} - Mov #{self.movimiento_id} ({self.get_estado_display()})"

@@ -110,3 +110,17 @@ class MovimientoForm(forms.ModelForm):
                 'rows': 2
             }),
         }
+
+
+class SolicitarAnulacionForm(forms.Form):
+    motivo_solicitud = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control border-secondary border-opacity-25',
+            'rows': 3,
+            'placeholder': 'Describa detalladamente el motivo operativo de la anulación (error en captura, mercancía devuelta, remisión duplicada, etc.)...'
+        }),
+        label="Motivo de la Anulación",
+        min_length=5,
+        required=True,
+        help_text="Mínimo 5 caracteres. Este motivo quedará registrado permanentemente en la pista de auditoría."
+    )

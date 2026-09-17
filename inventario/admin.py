@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UnidadMedida, Bodega, Producto, Stock, MovimientoInventario
+from .models import UnidadMedida, Bodega, Producto, Stock, MovimientoInventario, SolicitudAnulacionMovimiento
 
 @admin.register(UnidadMedida)
 class UnidadMedidaAdmin(admin.ModelAdmin):
@@ -20,10 +20,7 @@ class ProductoAdmin(admin.ModelAdmin):
 
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
-    # Usamos list_select_related para optimizar las consultas a la base de datos
     list_select_related = ('producto', 'bodega')
-
-    # ¿Qué columnas queremos ver en la lista principal?
     list_display = (
         'producto_sku',
         'producto_nombre',
@@ -34,20 +31,15 @@ class StockAdmin(admin.ModelAdmin):
         'ubicacion_especifica',
         'fecha_ultima_actualizacion'
     )
-
-    # Filtros laterales muy útiles
     list_filter = ('bodega', 'producto__tipo')
     search_fields = ('producto__sku', 'producto__nombre', 'ubicacion_especifica')
 
-    # ¡CRÍTICO! Bloqueamos la creación o edición manual del stock aquí.
-    # El stock SOLO debe modificarse a través de un MovimientoInventario (Kardex).
     def has_add_permission(self, request):
         return False
 
     def get_readonly_fields(self, request, obj=None):
         return ('producto', 'bodega', 'cantidad', 'cantidad_reservada')
 
-    # Métodos personalizados para mostrar info de llaves foráneas más bonita
     @admin.display(ordering='producto__sku', description='SKU')
     def producto_sku(self, obj):
         return obj.producto.sku
@@ -71,12 +63,29 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
         'bodega_destino',
         'bodega_origen',
         'referencia_operacion',
-        'usuario'
+        'usuario',
+        'es_anulado',
+        'es_contraasiento'
     )
-    list_filter = ('tipo_movimiento', 'fecha', 'bodega_destino', 'bodega_origen')
+    list_filter = ('tipo_movimiento', 'es_anulado', 'es_contraasiento', 'fecha', 'bodega_destino', 'bodega_origen')
     search_fields = ('producto__sku', 'producto__nombre', 'referencia_operacion', 'lote')
     date_hierarchy = 'fecha'
 
-    # El Kardex es sagrado, no se debe poder modificar un movimiento una vez hecho.
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(SolicitudAnulacionMovimiento)
+class SolicitudAnulacionMovimientoAdmin(admin.ModelAdmin):
+    list_display = (
+        'folio',
+        'movimiento',
+        'estado',
+        'usuario_solicita',
+        'fecha_solicitud',
+        'usuario_autoriza',
+        'fecha_resolucion'
+    )
+    list_filter = ('estado', 'fecha_solicitud')
+    search_fields = ('folio', 'motivo_solicitud', 'movimiento__producto__sku', 'movimiento__referencia_operacion')
+    readonly_fields = ('fecha_solicitud',)

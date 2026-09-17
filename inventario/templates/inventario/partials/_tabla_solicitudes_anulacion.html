@@ -1,0 +1,128 @@
+<!-- Tabla de Solicitudes de Anulación de Kardex (Control Administrativo) -->
+<span id="badge-anulaciones-count" hx-swap-oob="true" class="badge bg-danger text-white ms-2 rounded-pill shadow-sm {% if total_pendientes == 0 %}d-none{% endif %}">
+    {{ total_pendientes }}
+</span>
+
+{% if messages %}
+    <div class="p-3 pb-0">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 py-2 small mb-0" role="alert">
+                <i class="bi bi-info-circle-fill me-1"></i> {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small">
+            <tr>
+                <th>Folio / Fecha</th>
+                <th>Movimiento Original</th>
+                <th>Producto (SKU)</th>
+                <th class="text-end">Cantidad</th>
+                <th>Solicitante & Motivo</th>
+                <th>Validación Stock Físico</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary text-sm">
+            {% for item in solicitudes_data %}
+            <tr id="fila-solicitud-{{ item.solicitud.id }}">
+                <td>
+                    <div class="fw-bold text-dark">{{ item.solicitud.folio }}</div>
+                    <small class="text-muted">{{ item.solicitud.fecha_solicitud|date:"d/M/Y H:i" }}</small>
+                </td>
+                <td>
+                    <div class="font-monospace fw-semibold text-dark">Mov #{{ item.solicitud.movimiento.id|stringformat:"05d" }}</div>
+                    {% if item.solicitud.movimiento.tipo_movimiento == 'E' %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Entrada</span>
+                    {% elif item.solicitud.movimiento.tipo_movimiento == 'S' %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Salida</span>
+                    {% else %}
+                        <span class="badge bg-info text-dark">Transferencia</span>
+                    {% endif %}
+                    {% if item.solicitud.movimiento.referencia_operacion %}
+                        <small class="text-muted d-block font-monospace">{{ item.solicitud.movimiento.referencia_operacion }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="fw-semibold text-primary">{{ item.solicitud.movimiento.producto.nombre }}</div>
+                    <small class="text-muted"><code class="text-dark">{{ item.solicitud.movimiento.producto.sku }}</code></small>
+                </td>
+                <td class="text-end fw-bold {% if item.solicitud.movimiento.tipo_movimiento == 'E' %}text-success{% else %}text-danger{% endif %}">
+                    {% if item.solicitud.movimiento.tipo_movimiento == 'E' %}+{% else %}-{% endif %}{{ item.solicitud.movimiento.cantidad|floatformat:2 }}
+                    <small class="text-muted d-block fw-normal">{{ item.solicitud.movimiento.producto.unidad_medida.codigo }}</small>
+                </td>
+                <td style="max-width: 250px;">
+                    <div class="small fw-semibold text-dark">
+                        <i class="bi bi-person-fill text-muted me-1"></i>{{ item.solicitud.usuario_solicita.username }}
+                    </div>
+                    <p class="mb-0 text-muted small text-truncate" title="{{ item.solicitud.motivo_solicitud }}">
+                        <em>"{{ item.solicitud.motivo_solicitud }}"</em>
+                    </p>
+                </td>
+                <td>
+                    {% if item.disponible is not None %}
+                        {% if item.suficiente %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                                <i class="bi bi-check-circle me-1"></i>Disponible: {{ item.disponible|floatformat:2 }} (Suficiente)
+                            </span>
+                            <small class="text-muted d-block">{{ item.bodega_nombre }}</small>
+                        {% else %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" title="No hay stock suficiente en almacén para absorber la deducción de la anulación.">
+                                <i class="bi bi-exclamation-octagon me-1"></i>Insuficiente: {{ item.disponible|floatformat:2 }} disp.
+                            </span>
+                            <small class="text-danger d-block fw-semibold">{{ item.bodega_nombre }}</small>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-light text-secondary border">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Reintegra a {{ item.bodega_nombre }}
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if es_admin %}
+                        <div class="btn-group btn-group-sm shadow-sm" role="group">
+                            {% if item.suficiente %}
+                                <button type="button" class="btn btn-success"
+                                        hx-post="{% url 'inventario:autorizar_anulacion' item.solicitud.id %}"
+                                        hx-confirm="¿Confirmas la APROBACIÓN de anulación para el movimiento #{{ item.solicitud.movimiento.id }}? Se generará un contra-asiento de reversa en el Kardex."
+                                        hx-target="#anulacion-alert-area"
+                                        title="Aprobar Anulación">
+                                    <i class="bi bi-check2-circle me-1"></i> Aprobar
+                                </button>
+                            {% else %}
+                                <button type="button" class="btn btn-secondary disabled"
+                                        title="Bloqueado: no hay stock suficiente para realizar la reversa.">
+                                    <i class="bi bi-slash-circle me-1"></i> Bloqueado
+                                </button>
+                            {% endif %}
+
+                            <button type="button" class="btn btn-outline-danger"
+                                    hx-post="{% url 'inventario:rechazar_anulacion' item.solicitud.id %}"
+                                    hx-prompt="Ingresa el motivo del rechazo de la anulación:"
+                                    hx-target="#anulacion-alert-area"
+                                    title="Rechazar Solicitud">
+                                <i class="bi bi-x-circle me-1"></i> Rechazar
+                            </button>
+                        </div>
+                    {% else %}
+                        <span class="badge bg-light text-muted border">
+                            <i class="bi bi-lock me-1"></i>Requiere Admin
+                        </span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                    <i class="bi bi-check2-all fs-1 d-block mb-2 text-success opacity-50"></i>
+                    No hay solicitudes de anulación pendientes. Todo el Kardex se encuentra regularizado.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

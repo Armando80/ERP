@@ -48,6 +48,14 @@
             {% endif %}
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold text-dark position-relative" id="anulaciones-tab" data-bs-toggle="tab" data-bs-target="#tab-anulaciones" type="button" role="tab" aria-controls="tab-anulaciones" aria-selected="false">
+            <i class="bi bi-shield-x me-1 text-danger"></i>Solicitudes de Anulación (Kardex)
+            <span class="badge bg-danger text-white ms-2 rounded-pill shadow-sm {% if not total_solicitudes_anulacion %}d-none{% endif %}" id="badge-anulaciones-count">
+                {{ total_solicitudes_anulacion }}
+            </span>
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="kardexTabsContent">
@@ -98,7 +106,8 @@
                 <!-- Contenedor reactivo del Kardex -->
                 <div id="tabla-movimientos-container"
                      hx-get="{% url 'inventario:movimientos' %}"
-                     hx-trigger="movimientoGuardado from:body, entregaProcesada from:body">
+                     hx-include="#filtros-kardex [name]"
+                     hx-trigger="movimientoGuardado from:body, entregaProcesada from:body, anulacionSolicitada from:body, anulacionProcesada from:body">
                     {% include 'inventario/partials/_tabla_movimientos.html' %}
                 </div>
             </div>
@@ -134,7 +143,42 @@
             </div>
         </div>
     </div>
+
+    <!-- PESTAÑA 3: SOLICITUDES DE ANULACIÓN (AUTORIZACIÓN ADMINISTRATIVA) -->
+    <div class="tab-pane fade" id="tab-anulaciones" role="tabpanel" aria-labelledby="anulaciones-tab">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-shield-lock-fill text-danger me-2"></i>Bandeja de Anulaciones de Kardex
+                    </h5>
+                    <small class="text-muted">
+                        Procedimiento de reversa formal mediante <strong>contra-asientos contables (Storno)</strong>. Requiere autorización explícita de un usuario con perfil <strong>Administrador</strong>.
+                    </small>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="{% url 'inventario:solicitudes_anulacion' %}"
+                        hx-target="#tabla-anulaciones-container">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Bandeja
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="anulacion-alert-area" class="p-3 pb-0"></div>
+                <div id="tabla-anulaciones-container"
+                     hx-get="{% url 'inventario:solicitudes_anulacion' %}"
+                     hx-trigger="load, anulacionSolicitada from:body, anulacionProcesada from:body">
+                    <div class="text-center py-5 text-muted">
+                        <div class="spinner-border text-danger" role="status"></div>
+                        <p class="mt-2 small">Cargando solicitudes de anulación...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Contenedor dinámico para Modal de Solicitud de Anulación -->
+<div id="modal-anulacion-container"></div>
 
 <!-- ========================================== -->
 <!-- MODAL PARA INSPECCIÓN DE INSUMOS A DESCONTAR -->
@@ -187,10 +231,34 @@
         document.body.style.overflow = 'auto';
     });
 
-    // Evento cuando una entrega se autoriza o rechaza
-    document.body.addEventListener('entregaProcesada', function(evt) {
-        // Refrescar el Kardex y las entregas
-        htmx.trigger('#tabla-movimientos-container', 'movimientoGuardado');
+    // Evento cuando se registra una solicitud de anulación
+    document.body.addEventListener('anulacionSolicitada', function(evt) {
+        const modalEl = document.getElementById('modalSolicitarAnulacion');
+        if (modalEl) {
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                modalInstance.hide();
+            } else {
+                modalEl.remove();
+            }
+        }
+        // Limpieza de seguridad para asegurar scroll y remover backdrops
+        setTimeout(function() {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }, 300);
+    });
+
+    // Evento cuando un administrador aprueba o rechaza la anulación
+    document.body.addEventListener('anulacionProcesada', function(evt) {
+        setTimeout(function() {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }, 300);
     });
 </script>
 {% endblock %}
