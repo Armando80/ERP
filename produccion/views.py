@@ -10,14 +10,23 @@ from django.utils import timezone
 from weasyprint import HTML
 
 from inventario.models import Producto, Bodega, Stock
-from .models import ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo
-from .forms import ListaMaterialesBOMForm, InsumoBOMForm, OrdenProduccionForm, FinalizarOrdenForm
+from .models import (
+    ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
+    EntregaParcialProduccion, EntregaParcial_Insumo
+)
+from .forms import (
+    ListaMaterialesBOMForm, InsumoBOMForm, OrdenProduccionForm,
+    FinalizarOrdenForm, NotificarEntregaParcialForm
+)
 from .services import (
     crear_orden_produccion,
     iniciar_orden_produccion,
     finalizar_orden_produccion,
-    cancelar_orden_produccion
+    cancelar_orden_produccion,
+    notificar_entrega_parcial,
+    cerrar_orden_definitiva
 )
+
 
 
 # ==============================================================================
@@ -380,3 +389,96 @@ def descargar_hoja_viajero_pdf_view(request, pk):
     response = HttpResponse(pdf_generado, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="OP_{orden.folio}.pdf"'
     return response
+
+
+# ==============================================================================
+# GESTIÓN Y NOTIFICACIONES PARCIALES DE PRODUCCIÓN
+# ==============================================================================
+
+@login_required
+def gestionar_orden_view(request, pk):
+    """
+    Vista de control y edición de la Orden de Producción.
+    Permite visualizar el avance de fabricación, registrar entregas parciales
+    y consultar el historial de entregas enviadas al almacén.
+    """
+    orden = get_object_or_404(
+        OrdenProduccion.objects.select_related(
+            'producto_a_fabricar',
+            'producto_a_fabricar__unidad_medida',
+            'bodega_origen_insumos',
+            'bodega_destino_pt',
+            'usuario_creacion',
+            'bom'
+        ).prefetch_related(
+            'insumos_detalle__insumo',
+            'insumos_detalle__insumo__unidad_medida',
+            'entregas_parciales__usuario_notifica',
+            'entregas_parciales__usuario_autoriza',
+            'entregas_parciales__insumos_detalle__insumo'
+        ),
+        pk=pk
+    )
+
+    form_entrega = NotificarEntregaParcialForm(initial={
+        'cantidad_notificada': orden.cantidad_pendiente,
+        'lote_fabricacion': f"LOT-{orden.folio}-{timezone.now().strftime('%m%d')}"
+    })
+
+    entregas = orden.entregas_parciales.all()
+
+    return render(request, 'produccion/orden_produccion_gestion.html', {
+        'orden': orden,
+        'form_entrega': form_entrega,
+        'entregas': entregas
+    })
+
+
+@login_required
+def notificar_entrega_view(request, pk):
+    """
+    Procesa el formulario para registrar una entrega parcial.
+    Los insumos quedan congelados en estado PENDIENTE hasta que Almacén autorice en Kardex.
+    """
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+
+    if request.method == 'POST':
+        form = NotificarEntregaParcialForm(request.POST)
+        if form.is_valid():
+            try:
+                cantidad = form.cleaned_data['cantidad_notificada']
+                lote = form.cleaned_data.get('lote_fabricacion')
+                observaciones = form.cleaned_data.get('observaciones_produccion')
+
+                entrega = notificar_entrega_parcial(
+                    orden_id=orden.id,
+                    cantidad_notificada=cantidad,
+                    lote=lote,
+                    usuario_produccion=request.user,
+                    observaciones=observaciones
+                )
+                messages.success(
+                    request,
+                    f"¡Entrega {entrega.folio_entrega} ({cantidad} {orden.producto_a_fabricar.unidad_medida.codigo}) notificada! "
+                    "Los movimientos han quedado CONGELADOS en espera de la autorización del encargado de Almacén en el Kardex."
+                )
+            except Exception as e:
+                messages.error(request, f"Error al notificar entrega: {str(e)}")
+        else:
+            messages.error(request, "Datos inválidos en la notificación parcial.")
+
+    return redirect('produccion:gestionar_orden', pk=pk)
+
+
+@login_required
+def cerrar_orden_definitiva_view(request, pk):
+    """Cierra la OP formalmente cuando se da por terminado el lote en planta."""
+    if request.method == 'POST':
+        try:
+            orden = cerrar_orden_definitiva(pk, request.user)
+            messages.info(request, f"La orden {orden.folio} ha sido marcada como TERMINADA definitivamente.")
+        except Exception as e:
+            messages.error(request, f"Error al cerrar la orden: {str(e)}")
+
+    return redirect('produccion:gestionar_orden', pk=pk)
+

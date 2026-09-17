@@ -69,8 +69,16 @@
                         <span class="text-muted">&mdash;</span>
                     {% endif %}
                 </td>
-                <td class="text-end pe-4">
-                    <a href="{% url 'produccion:detalle_orden' orden.id %}" class="btn btn-sm btn-outline-primary shadow-sm" title="Ver Detalle y Trazabilidad">
+                <td class="text-end pe-4 text-nowrap">
+                    <a href="{% url 'produccion:gestionar_orden' orden.id %}" class="btn btn-sm btn-warning text-dark shadow-sm position-relative" title="Editar / Gestionar Entregas Parciales">
+                        <i class="bi bi-pencil-square"></i>
+                        {% if orden.entregas_pendientes_count > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style="font-size: 0.65rem;" title="{{ orden.entregas_pendientes_count }} entregas congeladas esperando almacén">
+                                {{ orden.entregas_pendientes_count }}
+                            </span>
+                        {% endif %}
+                    </a>
+                    <a href="{% url 'produccion:detalle_orden' orden.id %}" class="btn btn-sm btn-outline-primary shadow-sm ms-1" title="Ver Detalle y Trazabilidad">
                         <i class="bi bi-eye"></i>
                     </a>
                     <a href="{% url 'produccion:descargar_pdf' orden.id %}" target="_blank" class="btn btn-sm btn-light text-danger border shadow-sm ms-1" title="Descargar Hoja de Viajero (PDF)">

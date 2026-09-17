@@ -259,6 +259,23 @@ class OrdenProduccion(models.Model):
     def __str__(self):
         return f"OP {self.folio} - {self.producto_a_fabricar.sku} ({self.get_estado_display()})"
 
+    @property
+    def cantidad_pendiente(self):
+        """Retorna la cantidad restante por producir."""
+        return max(Decimal('0.0000'), self.cantidad_a_producir - self.cantidad_producida)
+
+    @property
+    def porcentaje_avance(self):
+        """Calcula el porcentaje de avance respecto a la meta solicitada."""
+        if self.cantidad_a_producir and self.cantidad_a_producir > Decimal('0'):
+            return min(Decimal('100.0'), round((self.cantidad_producida / self.cantidad_a_producir) * Decimal('100.0'), 1))
+        return Decimal('0.0')
+
+    @property
+    def entregas_pendientes_count(self):
+        """Número de entregas enviadas que esperan autorización de almacén."""
+        return self.entregas_parciales.filter(estado=EntregaParcialProduccion.PENDIENTE).count()
+
 
 class OrdenProduccion_Insumo(models.Model):
     """
@@ -308,4 +325,161 @@ class OrdenProduccion_Insumo(models.Model):
 
     def __str__(self):
         return f"{self.insumo.sku} para {self.orden.folio}"
+
+
+class EntregaParcialProduccion(models.Model):
+    """
+    Notificación parcial de producto terminado enviado al almacén.
+    Permanece congelada hasta que el usuario de almacén la autoriza en el Kardex.
+    """
+    PENDIENTE = 'PENDIENTE'
+    AUTORIZADA = 'AUTORIZADA'
+    RECHAZADA = 'RECHAZADA'
+
+    ESTADOS_ENTREGA = [
+        (PENDIENTE, 'Pendiente de Autorización de Almacén'),
+        (AUTORIZADA, 'Autorizada (Ingresada al Kardex)'),
+        (RECHAZADA, 'Rechazada por Almacén'),
+    ]
+
+    orden = models.ForeignKey(
+        OrdenProduccion,
+        on_delete=models.CASCADE,
+        related_name='entregas_parciales',
+        verbose_name="Orden de Producción"
+    )
+    folio_entrega = models.CharField(
+        max_length=30,
+        unique=True,
+        editable=False,
+        verbose_name="Folio de Entrega"
+    )
+    cantidad_notificada = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        validators=[MinValueValidator(Decimal('0.0001'))],
+        verbose_name="Cantidad Notificada (PT)"
+    )
+    lote_fabricacion = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name="Lote Fabricado"
+    )
+    fecha_notificacion = models.DateTimeField(
+        default=timezone.now,
+        verbose_name="Fecha de Notificación"
+    )
+    usuario_notifica = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='entregas_notificadas',
+        verbose_name="Notificado por",
+        null=True,
+        blank=True
+    )
+    estado = models.CharField(
+        max_length=15,
+        choices=ESTADOS_ENTREGA,
+        default=PENDIENTE,
+        verbose_name="Estado de Autorización"
+    )
+
+    # Resolución de Almacén
+    fecha_autorizacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Resolución"
+    )
+    usuario_autoriza = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='entregas_resueltas',
+        verbose_name="Resuelto por (Almacén)",
+        null=True,
+        blank=True
+    )
+    notas_almacen = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones / Motivo de Almacén"
+    )
+    observaciones_produccion = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Notas del Turno / Producción"
+    )
+
+    # Costos Industriales Asignados a este Lote Parcial
+    costo_total_insumos_mxn = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        verbose_name="Costo Total Insumos (MXN)"
+    )
+    costo_unitario_final_mxn = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        verbose_name="Costo Unitario Resultante (MXN)"
+    )
+
+    class Meta:
+        verbose_name = "Entrega Parcial de Producción"
+        verbose_name_plural = "Entregas Parciales de Producción"
+        ordering = ['-fecha_notificacion']
+
+    def __str__(self):
+        return f"{self.folio_entrega} - {self.cantidad_notificada} {self.orden.producto_a_fabricar.sku} ({self.get_estado_display()})"
+
+
+class EntregaParcial_Insumo(models.Model):
+    """
+    Desglose de materias primas e insumos proporcionales (o reales) consumidos
+    específicamente para esta entrega parcial.
+    """
+    entrega = models.ForeignKey(
+        EntregaParcialProduccion,
+        on_delete=models.CASCADE,
+        related_name='insumos_detalle',
+        verbose_name="Entrega Parcial"
+    )
+    insumo = models.ForeignKey(
+        Producto,
+        on_delete=models.PROTECT,
+        related_name='consumos_en_entregas',
+        verbose_name="Insumo / Materia Prima"
+    )
+    cantidad_estimada = models.DecimalField(
+        max_digits=14,
+        decimal_places=6,
+        verbose_name="Cantidad Estimada"
+    )
+    cantidad_consumida = models.DecimalField(
+        max_digits=14,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        verbose_name="Cantidad Consumida"
+    )
+    costo_unitario_mxn = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        verbose_name="Costo Unitario Capturado (MXN)"
+    )
+    costo_total_mxn = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        verbose_name="Costo Total Línea (MXN)"
+    )
+
+    class Meta:
+        verbose_name = "Insumo de Entrega Parcial"
+        verbose_name_plural = "Insumos de Entregas Parciales"
+        unique_together = ('entrega', 'insumo')
+
+    def __str__(self):
+        return f"{self.insumo.sku}: {self.cantidad_consumida} para {self.entrega.folio_entrega}"
+
 

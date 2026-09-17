@@ -7,92 +7,167 @@
 <div class="row mb-4 align-items-center">
     <div class="col">
         <h2 class="fw-bold text-dark mb-1">Kardex de Almacén</h2>
-        <p class="text-muted mb-0">Registro histórico de entradas, salidas y ajustes de inventario.</p>
+        <p class="text-muted mb-0">Registro histórico de movimientos y autorización de entregas de manufactura.</p>
     </div>
     <div class="col-auto">
-        <!-- Botón que abre el Offcanvas y carga el formulario vía HTMX -->
+        <!-- Botón que abre el Offcanvas para movimiento manual -->
         <button class="btn btn-primary shadow-sm" 
                 hx-get="{% url 'inventario:registrar_movimiento' %}" 
                 hx-target="#form-movimiento-container"
                 data-bs-toggle="offcanvas" 
                 data-bs-target="#offcanvasMovimiento">
-            <i class="bi bi-box-arrow-in-down-right me-2"></i>Registrar Movimiento
+            <i class="bi bi-box-arrow-in-down-right me-2"></i>Registrar Movimiento Manual
         </button>
     </div>
 </div>
 
-<!-- Tarjeta Principal con la Tabla -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body p-4">
-
-    <!-- Filtros Rápidos y Buscador -->
-    <div class="d-flex flex-wrap gap-3 mb-4" id="filtros-kardex">
-        <div class="input-group w-auto flex-grow-1" style="max-width: 300px;">
-            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-            <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Buscar por SKU o Folio..."
-                    value="{{ query }}"
-                    hx-get="{% url 'inventario:movimientos' %}"
-                    hx-trigger="keyup changed delay:400ms, search"
-                    hx-target="#tabla-movimientos-container"
-                    hx-include="#filtros-kardex [name]">
+<!-- Mensajes del Sistema -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+    {% endfor %}
+{% endif %}
 
-        <select name="bodega" class="form-select w-auto text-muted small"
-                hx-get="{% url 'inventario:movimientos' %}"
-                hx-trigger="change"
-                hx-target="#tabla-movimientos-container"
-                hx-include="#filtros-kardex [name]">
-            <option value="">Todos los Almacenes</option>
-            {% for bodega in bodegas %}
-                <option value="{{ bodega.id }}">{{ bodega.nombre }}</option>
-            {% endfor %}
-        </select>
+<!-- Pestañas de Navegación (Tabs) -->
+<ul class="nav nav-tabs nav-tabs-bordered mb-4" id="kardexTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-semibold text-dark" id="kardex-oficial-tab" data-bs-toggle="tab" data-bs-target="#tab-kardex" type="button" role="tab" aria-controls="tab-kardex" aria-selected="true">
+            <i class="bi bi-journal-text me-2"></i>Kardex Oficial (Historial Aplicado)
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold text-dark position-relative" id="pendientes-tab" data-bs-toggle="tab" data-bs-target="#tab-pendientes" type="button" role="tab" aria-controls="tab-pendientes" aria-selected="false">
+            <i class="bi bi-hourglass-split me-1 text-warning"></i>Pendientes de Autorización (Producción)
+            {% if total_pendientes > 0 %}
+                <span class="badge bg-warning text-dark ms-2 rounded-pill shadow-sm" id="badge-pendientes-count">
+                    {{ total_pendientes }}
+                </span>
+            {% endif %}
+        </button>
+    </li>
+</ul>
 
-        <select name="tipo" class="form-select w-auto text-muted small"
-                hx-get="{% url 'inventario:movimientos' %}"
-                hx-trigger="change"
-                hx-target="#tabla-movimientos-container"
-                hx-include="#filtros-kardex [name]">
-            <option value="">Todos los Tipos</option>
-            <option value="E">Solo Entradas</option>
-            <option value="S">Solo Salidas</option>
-            <option value="T">Transferencias</option>
-        </select>
+<div class="tab-content" id="kardexTabsContent">
+    <!-- PESTAÑA 1: KARDEX OFICIAL -->
+    <div class="tab-pane fade show active" id="tab-kardex" role="tabpanel" aria-labelledby="kardex-oficial-tab">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <!-- Filtros Rápidos y Buscador -->
+                <div class="d-flex flex-wrap gap-3 mb-4" id="filtros-kardex">
+                    <div class="input-group w-auto flex-grow-1" style="max-width: 320px;">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Buscar por SKU, nombre o Folio..."
+                                value="{{ query }}"
+                                hx-get="{% url 'inventario:movimientos' %}"
+                                hx-trigger="keyup changed delay:400ms, search"
+                                hx-target="#tabla-movimientos-container"
+                                hx-include="#filtros-kardex [name]">
+                    </div>
 
-        <!-- Indicador de carga de HTMX -->
-        <div id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-primary my-auto" role="status">
-            <span class="visually-hidden">Cargando...</span>
+                    <select name="bodega" class="form-select w-auto text-muted small"
+                            hx-get="{% url 'inventario:movimientos' %}"
+                            hx-trigger="change"
+                            hx-target="#tabla-movimientos-container"
+                            hx-include="#filtros-kardex [name]">
+                        <option value="">Todos los Almacenes</option>
+                        {% for bodega in bodegas %}
+                            <option value="{{ bodega.id }}">{{ bodega.nombre }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <select name="tipo" class="form-select w-auto text-muted small"
+                            hx-get="{% url 'inventario:movimientos' %}"
+                            hx-trigger="change"
+                            hx-target="#tabla-movimientos-container"
+                            hx-include="#filtros-kardex [name]">
+                        <option value="">Todos los Tipos</option>
+                        <option value="E">Solo Entradas</option>
+                        <option value="S">Solo Salidas</option>
+                        <option value="T">Transferencias</option>
+                    </select>
+
+                    <!-- Indicador de carga de HTMX -->
+                    <div id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-primary my-auto" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+
+                <!-- Contenedor reactivo del Kardex -->
+                <div id="tabla-movimientos-container"
+                     hx-get="{% url 'inventario:movimientos' %}"
+                     hx-trigger="movimientoGuardado from:body, entregaProcesada from:body">
+                    {% include 'inventario/partials/_tabla_movimientos.html' %}
+                </div>
+            </div>
         </div>
     </div>
 
-        <!-- Estilo extra para el indicador de HTMX -->
-        <style>
-            .htmx-indicator { display: none; }
-            .htmx-request .htmx-indicator { display: inline-block; }
-            .htmx-request.htmx-indicator { display: inline-block; }
-        </style>
-
-                <!-- Este div escucha el evento 'movimientoGuardado' y le pide al servidor la tabla actualizada -->
-        <div id="tabla-movimientos-container"
-            hx-get="{% url 'inventario:movimientos' %}"
-            hx-trigger="movimientoGuardado from:body">
-
-            {% include 'inventario/partials/_tabla_movimientos.html' %}
-
+    <!-- PESTAÑA 2: PENDIENTES DE AUTORIZACIÓN (PRODUCCIÓN) -->
+    <div class="tab-pane fade" id="tab-pendientes" role="tabpanel" aria-labelledby="pendientes-tab">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-box-seam text-warning me-2"></i>Bandeja de Entrada de Almacén
+                    </h5>
+                    <small class="text-muted">
+                        Mercancía de producto terminado notificada por Producción. Los movimientos en el Kardex permanecen <strong>congelados</strong> hasta su validación física.
+                    </small>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="{% url 'inventario:entregas_pendientes' %}"
+                        hx-target="#tabla-pendientes-container">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Bandeja
+                </button>
+            </div>
+            <div class="card-body p-0"
+                 id="tabla-pendientes-container"
+                 hx-get="{% url 'inventario:entregas_pendientes' %}"
+                 hx-trigger="load, entregaProcesada from:body">
+                <div class="text-center py-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 small">Cargando notificaciones de producción...</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- ========================================== -->
-<!-- OFFCANVAS PARA REGISTRO DE MOVIMIENTOS -->
+<!-- MODAL PARA INSPECCIÓN DE INSUMOS A DESCONTAR -->
+<!-- ========================================== -->
+<div class="modal fade" id="modalInsumosEntrega" tabindex="-1" aria-labelledby="modalInsumosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold" id="modalInsumosLabel">
+                    <i class="bi bi-list-check me-2"></i>Desglose de Insumos de la Entrega
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="modal-insumos-body">
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- OFFCANVAS PARA REGISTRO DE MOVIMIENTOS MANUALES -->
 <!-- ========================================== -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasMovimiento" hx-on::after-hide="document.getElementById('form-movimiento-container').innerHTML = ''">
     <div class="offcanvas-header border-bottom bg-light">
-        <h5 class="offcanvas-title fw-bold text-dark"><i class="bi bi-boxes me-2"></i>Capturar Movimiento</h5>
+        <h5 class="offcanvas-title fw-bold text-dark"><i class="bi bi-boxes me-2"></i>Capturar Movimiento Manual</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-
-    <!-- Contenedor dinámico HTMX -->
     <div class="offcanvas-body" id="form-movimiento-container">
         <div class="d-flex justify-content-center align-items-center h-100">
             <div class="spinner-border text-primary" role="status">
@@ -102,15 +177,20 @@
     </div>
 </div>
 
-<!-- Script para cerrar el Offcanvas al guardar (Reutiliza la lógica del catálogo) -->
 <script>
+    // Evento para cerrar offcanvas de movimiento manual
     document.body.addEventListener('movimientoGuardado', function(evt) {
         const offcanvasElement = document.getElementById('offcanvasMovimiento');
         const instance = bootstrap.Offcanvas.getInstance(offcanvasElement);
         if (instance) instance.hide();
         document.querySelectorAll('.offcanvas-backdrop').forEach(el => el.remove());
         document.body.style.overflow = 'auto';
-        document.body.style.paddingRight = '0px';
+    });
+
+    // Evento cuando una entrega se autoriza o rechaza
+    document.body.addEventListener('entregaProcesada', function(evt) {
+        // Refrescar el Kardex y las entregas
+        htmx.trigger('#tabla-movimientos-container', 'movimientoGuardado');
     });
 </script>
 {% endblock %}

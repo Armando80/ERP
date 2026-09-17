@@ -1,0 +1,243 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Gestionar OP {{ orden.folio }} | ERP Decorlata{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'produccion:lista_ordenes' %}" class="text-decoration-none text-muted">Producción</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Gestión {{ orden.folio }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="fw-bold text-dark mb-0">Gestión de Orden: {{ orden.folio }}</h2>
+            {% if orden.estado == 'PLA' %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Planeada</span>
+            {% elif orden.estado == 'PRO' %}
+                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">En Proceso</span>
+            {% elif orden.estado == 'TER' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Terminada</span>
+            {% elif orden.estado == 'CAN' %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">Cancelada</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'produccion:lista_ordenes' %}" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Órdenes
+        </a>
+        <a href="{% url 'produccion:detalle_orden' orden.id %}" class="btn btn-outline-primary shadow-sm">
+            <i class="bi bi-eye me-1"></i> Ver Ficha Técnica
+        </a>
+        <a href="{% url 'produccion:descargar_pdf' orden.id %}" target="_blank" class="btn btn-outline-danger shadow-sm">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Hoja de Viajero
+        </a>
+
+        {% if orden.estado != 'TER' and orden.estado != 'CAN' %}
+            <form action="{% url 'produccion:cerrar_orden_definitiva' orden.id %}" method="POST" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-dark shadow-sm ms-1"
+                        onclick="return confirm('¿Deseas marcar esta orden como TERMINADA definitivamente con lo producido hasta el momento?');">
+                    <i class="bi bi-check2-all me-1"></i> Concluir Orden
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Mensajes del Sistema -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Tarjeta de Avance de Fabricación -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-4">
+                <span class="text-muted small text-uppercase fw-bold d-block">Producto a Fabricar</span>
+                <h5 class="fw-bold text-dark mb-0">{{ orden.producto_a_fabricar.nombre }}</h5>
+                <span class="badge bg-light text-secondary border font-monospace mt-1">{{ orden.producto_a_fabricar.sku }}</span>
+            </div>
+            <div class="col-lg-4 text-lg-center">
+                <div class="row g-2">
+                    <div class="col-4">
+                        <small class="text-muted d-block">Meta Solicitada</small>
+                        <strong class="fs-5 text-dark">{{ orden.cantidad_a_producir|floatformat:2 }}</strong>
+                        <small class="text-muted d-block">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                    </div>
+                    <div class="col-4 border-start border-end">
+                        <small class="text-muted d-block">En Almacén</small>
+                        <strong class="fs-5 text-success">{{ orden.cantidad_producida|floatformat:2 }}</strong>
+                        <small class="text-muted d-block">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted d-block">Por Producir</small>
+                        <strong class="fs-5 text-primary">{{ orden.cantidad_pendiente|floatformat:2 }}</strong>
+                        <small class="text-muted d-block">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small fw-bold text-muted">Progreso General</span>
+                    <span class="small fw-bold text-dark font-monospace">{{ orden.porcentaje_avance }}%</span>
+                </div>
+                <div class="progress" style="height: 12px;">
+                    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: {{ orden.porcentaje_avance }}%;"
+                         aria-valuenow="{{ orden.porcentaje_avance }}"
+                         aria-valuemin="0"
+                         aria-valuemax="100"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Columna Izquierda: Formulario de Notificación Parcial -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-box-arrow-in-right me-2 text-primary"></i>Notificar Entrega de Turno
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning small border-0 shadow-sm mb-4">
+                    <i class="bi bi-snow2 me-1"></i>
+                    <strong>Protocolo de Congelamiento:</strong> La cantidad de producto terminado y el consumo de insumos notificados quedarán <strong>congelados</strong> hasta que el encargado de Almacén en la vista <em>Kardex y Movimientos</em> autorice el ingreso formal.
+                </div>
+
+                {% if orden.estado != 'TER' and orden.estado != 'CAN' %}
+                <form action="{% url 'produccion:notificar_entrega' orden.id %}" method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">{{ form_entrega.cantidad_notificada.label }} *</label>
+                        <div class="input-group">
+                            {{ form_entrega.cantidad_notificada }}
+                            <span class="input-group-text bg-light text-muted fw-bold">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">{{ form_entrega.lote_fabricacion.label }}</label>
+                        {{ form_entrega.lote_fabricacion }}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">{{ form_entrega.observaciones_produccion.label }}</label>
+                        {{ form_entrega.observaciones_produccion }}
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg shadow-sm"
+                                onclick="return confirm('¿Confirmas la notificación de esta entrega parcial al almacén?');">
+                            <i class="bi bi-send-check me-2"></i> Notificar Entrega a Almacén
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-2"></i>
+                    Esta orden ya se encuentra <strong>{{ orden.get_estado_display }}</strong>. No admite más notificaciones parciales.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Columna Derecha: Historial de Entregas Parciales -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold text-dark mb-0">Historial de Entregas Parciales</h5>
+                    <small class="text-muted">Registro de notificaciones de línea y estatus de autorización en Almacén.</small>
+                </div>
+                <span class="badge bg-light text-dark border">{{ entregas.count }} entrega(s)</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light text-muted text-uppercase" style="font-size: 0.75rem;">
+                            <tr>
+                                <th class="ps-3">Folio Entrega</th>
+                                <th class="text-center">Cant. Notificada</th>
+                                <th>Lote</th>
+                                <th class="text-center">Estatus Almacén</th>
+                                <th class="pe-3">Detalle / Notas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-secondary">
+                            {% for entrega in entregas %}
+                            <tr>
+                                <td class="ps-3">
+                                    <strong class="font-monospace text-dark d-block">{{ entrega.folio_entrega }}</strong>
+                                    <small class="text-muted">{{ entrega.fecha_notificacion|date:"d M Y H:i" }}</small>
+                                </td>
+                                <td class="text-center fw-bold text-dark font-monospace">
+                                    {{ entrega.cantidad_notificada|floatformat:2 }} <small class="text-muted">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border font-monospace">{{ entrega.lote_fabricacion|default:"-" }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if entrega.estado == 'PENDIENTE' %}
+                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">
+                                            <i class="bi bi-hourglass-split me-1"></i>Esperando Almacén
+                                        </span>
+                                    {% elif entrega.estado == 'AUTORIZADA' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                            <i class="bi bi-check-circle-fill me-1"></i>En Kardex
+                                        </span>
+                                    {% elif entrega.estado == 'RECHAZADA' %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                                            <i class="bi bi-x-circle-fill me-1"></i>Rechazada
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="pe-3">
+                                    {% if entrega.estado == 'AUTORIZADA' %}
+                                        <small class="d-block text-success">
+                                            <i class="bi bi-person-check me-1"></i>{{ entrega.usuario_autoriza.username }}
+                                            ({{ entrega.fecha_autorizacion|date:"d M H:i" }})
+                                        </small>
+                                        <small class="text-muted font-monospace">Unit: ${{ entrega.costo_unitario_final_mxn|floatformat:4 }} MXN</small>
+                                    {% elif entrega.estado == 'RECHAZADA' %}
+                                        <small class="d-block text-danger">
+                                            <i class="bi bi-exclamation-octagon me-1"></i>{{ entrega.notas_almacen|default:"Rechazada por almacén" }}
+                                        </small>
+                                    {% else %}
+                                        <small class="text-muted fst-italic">Pendiente de validación física</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-boxes fs-1 d-block mb-2 opacity-50"></i>
+                                    No se han registrado entregas parciales para esta orden de producción.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

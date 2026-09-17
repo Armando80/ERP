@@ -1,0 +1,57 @@
+<div class="mb-3 p-3 bg-light rounded border">
+    <div class="row g-2">
+        <div class="col-md-6">
+            <small class="text-muted d-block">Entrega Parcial:</small>
+            <strong class="text-dark font-monospace">{{ entrega.folio_entrega }}</strong> (OP: {{ entrega.orden.folio }})
+        </div>
+        <div class="col-md-6 text-md-end">
+            <small class="text-muted d-block">Producto a Ingresar:</small>
+            <strong class="text-success">{{ entrega.cantidad_notificada|floatformat:2 }} {{ entrega.orden.producto_a_fabricar.unidad_medida.codigo }}</strong>
+            <span class="text-dark d-block small">{{ entrega.orden.producto_a_fabricar.nombre }}</span>
+        </div>
+        <div class="col-12 border-top pt-2 mt-2">
+            <small class="text-muted">Almacén Origen (se descontarán los insumos):</small>
+            <strong class="text-dark d-block"><i class="bi bi-box-arrow-up-right me-1 text-primary"></i>{{ entrega.orden.bodega_origen_insumos.nombre }}</strong>
+        </div>
+    </div>
+</div>
+
+<h6 class="fw-bold text-dark mb-2">
+    <i class="bi bi-boxes me-1 text-primary"></i>Insumos y Componentes a Descontar del Kardex:
+</h6>
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0 small">
+        <thead class="table-light text-muted text-uppercase">
+            <tr>
+                <th class="ps-2">Insumo</th>
+                <th class="text-center">Cant. a Descontar</th>
+                <th class="text-end">Costo Unit. MXN</th>
+                <th class="text-end pe-2">Subtotal Consumo</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary">
+            {% for item in entrega.insumos_detalle.all %}
+            <tr>
+                <td class="ps-2">
+                    <span class="fw-semibold text-dark d-block">{{ item.insumo.nombre }}</span>
+                    <span class="badge bg-light text-secondary border font-monospace">{{ item.insumo.sku }}</span>
+                </td>
+                <td class="text-center font-monospace fw-bold text-danger">
+                    -{{ item.cantidad_consumida|floatformat:4 }} <small class="text-muted">{{ item.insumo.unidad_medida.codigo }}</small>
+                </td>
+                <td class="text-end font-monospace text-muted">
+                    ${{ item.costo_unitario_mxn|default:item.insumo.costo_promedio_mxn|floatformat:4 }}
+                </td>
+                <td class="text-end pe-2 font-monospace fw-semibold text-dark">
+                    ${{ item.costo_total_mxn|floatformat:4 }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center py-3 text-muted">No se registraron consumos para esta entrega.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

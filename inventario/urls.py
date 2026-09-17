@@ -28,4 +28,8 @@ urlpatterns = [
     # Rutas para el Kardex y Movimientos
     path('movimientos/', views.movimientos_view, name='movimientos'),
     path('movimientos/registrar/', views.registrar_movimiento_view, name='registrar_movimiento'),
+    path('movimientos/autorizaciones/', views.entregas_pendientes_view, name='entregas_pendientes'),
+    path('movimientos/autorizaciones/<int:pk>/insumos/', views.detalle_insumos_entrega_view, name='detalle_insumos_entrega'),
+    path('movimientos/autorizaciones/<int:pk>/autorizar/', views.autorizar_entrega_view, name='autorizar_entrega'),
+    path('movimientos/autorizaciones/<int:pk>/rechazar/', views.rechazar_entrega_view, name='rechazar_entrega'),
 ]

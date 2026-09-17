@@ -149,3 +149,37 @@ class FinalizarOrdenForm(forms.Form):
         label="Observaciones de Cierre",
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Incidencias, mermas o novedades en planta...'})
     )
+
+
+class NotificarEntregaParcialForm(forms.Form):
+    """Formulario para que producción notifique una entrega parcial de producto terminado."""
+    cantidad_notificada = forms.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        min_value=Decimal('0.0001'),
+        label="Cantidad Terminada en este Lote / Turno",
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-lg fw-bold text-primary',
+            'step': '0.01',
+            'placeholder': '0.00'
+        })
+    )
+    lote_fabricacion = forms.CharField(
+        max_length=50,
+        required=False,
+        label="Lote de Fabricación",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control font-monospace',
+            'placeholder': 'Ej. LOT-2026-001 (opcional, auto-generado si vacío)'
+        })
+    )
+    observaciones_produccion = forms.CharField(
+        required=False,
+        label="Observaciones del Turno / Producción",
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Detalles del turno, operador de línea o especificaciones de calidad...'
+        })
+    )
+

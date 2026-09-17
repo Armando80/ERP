@@ -21,6 +21,10 @@ urlpatterns = [
     path('ordenes/<int:pk>/finalizar/', views.finalizar_orden_view, name='finalizar_orden'),
     path('ordenes/<int:pk>/cancelar/', views.cancelar_orden_view, name='cancelar_orden'),
     path('ordenes/<int:pk>/pdf/', views.descargar_hoja_viajero_pdf_view, name='descargar_pdf'),
+    path('ordenes/<int:pk>/gestionar/', views.gestionar_orden_view, name='gestionar_orden'),
+    path('ordenes/<int:pk>/notificar-entrega/', views.notificar_entrega_view, name='notificar_entrega'),
+    path('ordenes/<int:pk>/cerrar-definitiva/', views.cerrar_orden_definitiva_view, name='cerrar_orden_definitiva'),
+
 
     # Endpoints dinámicos HTMX
     path('api/previsualizar-bom/', views.previsualizar_bom_op_view, name='previsualizar_bom'),

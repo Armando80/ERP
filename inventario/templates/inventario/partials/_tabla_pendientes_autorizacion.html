@@ -1,0 +1,89 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+            <tr>
+                <th class="ps-4">Entrega / Fecha</th>
+                <th>Orden de Producción</th>
+                <th>Producto a Ingresar (PT)</th>
+                <th class="text-center">Cant. Notificada</th>
+                <th>Lote</th>
+                <th>Ruta Almacén</th>
+                <th>Notificado por</th>
+                <th class="text-end pe-4">Acciones de Almacén</th>
+            </tr>
+        </thead>
+        <tbody class="text-secondary small">
+            {% for entrega in entregas %}
+            <tr>
+                <td class="ps-4">
+                    <strong class="font-monospace text-dark d-block">{{ entrega.folio_entrega }}</strong>
+                    <small class="text-muted">{{ entrega.fecha_notificacion|date:"d M Y H:i" }}</small>
+                </td>
+                <td>
+                    <span class="badge bg-light text-primary border font-monospace">{{ entrega.orden.folio }}</span>
+                </td>
+                <td>
+                    <div class="fw-bold text-dark">{{ entrega.orden.producto_a_fabricar.nombre }}</div>
+                    <small class="text-muted font-monospace">{{ entrega.orden.producto_a_fabricar.sku }}</small>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold fs-6 text-success font-monospace">+{{ entrega.cantidad_notificada|floatformat:2 }}</span>
+                    <small class="text-muted d-block">{{ entrega.orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                </td>
+                <td>
+                    <span class="badge bg-light text-dark border font-monospace">{{ entrega.lote_fabricacion|default:"-" }}</span>
+                </td>
+                <td>
+                    <small class="d-block text-danger"><i class="bi bi-box-arrow-up-right me-1"></i>Sale de: {{ entrega.orden.bodega_origen_insumos.nombre }}</small>
+                    <small class="d-block text-success fw-semibold"><i class="bi bi-box-arrow-in-down-right me-1"></i>Entra a: {{ entrega.orden.bodega_destino_pt.nombre }}</small>
+                </td>
+                <td>
+                    <span class="text-muted"><i class="bi bi-person me-1"></i>{{ entrega.usuario_notifica.username|default:"Producción" }}</span>
+                    {% if entrega.observaciones_produccion %}
+                        <small class="d-block text-truncate text-muted" style="max-width: 140px;" title="{{ entrega.observaciones_produccion }}">
+                            <i class="bi bi-chat-left-text me-1"></i>{{ entrega.observaciones_produccion }}
+                        </small>
+                    {% endif %}
+                </td>
+                <td class="text-end pe-4 text-nowrap">
+                    <!-- Botón para ver insumos -->
+                    <button class="btn btn-sm btn-outline-info shadow-sm"
+                            title="Ver Insumos a Descontar"
+                            hx-get="{% url 'inventario:detalle_insumos_entrega' entrega.id %}"
+                            hx-target="#modal-insumos-body"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalInsumosEntrega">
+                        <i class="bi bi-list-check me-1"></i> Insumos
+                    </button>
+
+                    <!-- Botón Autorizar -->
+                    <button class="btn btn-sm btn-success shadow-sm ms-1"
+                            title="Autorizar e Ingresar al Kardex"
+                            hx-post="{% url 'inventario:autorizar_entrega' entrega.id %}"
+                            hx-confirm="¿Confirmas que la mercancía física ingresó al almacén? Se aplicarán las salidas de insumos y la entrada de PT en el Kardex."
+                            hx-target="#tabla-pendientes-container">
+                        <i class="bi bi-check-lg me-1"></i> Autorizar
+                    </button>
+
+                    <!-- Botón Rechazar -->
+                    <button class="btn btn-sm btn-outline-danger shadow-sm ms-1"
+                            title="Rechazar Entrega"
+                            hx-post="{% url 'inventario:rechazar_entrega' entrega.id %}"
+                            hx-prompt="Indica el motivo de rechazo de esta entrega física:"
+                            hx-headers='{"X-Motivo-Rechazo": ""}'
+                            hx-target="#tabla-pendientes-container">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-5 text-muted">
+                    <i class="bi bi-check2-circle text-success fs-1 d-block mb-2 opacity-75"></i>
+                    <strong>¡Todo al día!</strong> No hay notificaciones de producción pendientes de autorización en este momento.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

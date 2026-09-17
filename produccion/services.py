@@ -4,7 +4,10 @@ from django.db import transaction
 from django.utils import timezone
 from general.models import Moneda
 from inventario.models import Producto, Bodega, Stock, MovimientoInventario
-from .models import ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo
+from .models import (
+    ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
+    EntregaParcialProduccion, EntregaParcial_Insumo
+)
 
 
 def generar_folio_produccion():
@@ -241,3 +244,226 @@ def cancelar_orden_produccion(orden_id, usuario=None):
         orden.estado = OrdenProduccion.CANCELADA
         orden.save()
         return orden
+
+
+def generar_folio_entrega(orden):
+    """Genera un folio secuencial para la entrega parcial, ej: ENT-OP-2026-0001-01"""
+    secuencia = orden.entregas_parciales.count() + 1
+    return f"ENT-{orden.folio}-{secuencia:02d}"
+
+
+def notificar_entrega_parcial(orden_id, cantidad_notificada, lote=None, consumos_dict=None, usuario_produccion=None, observaciones=None):
+    """
+    Registra una notificación parcial de producto terminado desde Producción.
+    Calcula los insumos proporcionales según la receta y crea la entrega en estado PENDIENTE.
+    IMPORTANTE: No genera movimientos en el Kardex ni descuenta stock físico hasta que Almacén autorice.
+    """
+    with transaction.atomic():
+        orden = OrdenProduccion.objects.select_for_update().get(id=orden_id)
+
+        if orden.estado in [OrdenProduccion.TERMINADA, OrdenProduccion.CANCELADA]:
+            raise ValueError(f"No se pueden registrar entregas en una orden en estado {orden.get_estado_display()}.")
+
+        cant_notif_dec = Decimal(str(cantidad_notificada))
+        if cant_notif_dec <= Decimal('0'):
+            raise ValueError("La cantidad notificada debe ser mayor a cero.")
+
+        # Si la orden aún estaba Planeada, pasa automáticamente a En Proceso
+        if orden.estado == OrdenProduccion.PLANEADA:
+            orden.estado = OrdenProduccion.EN_PROCESO
+            orden.save()
+
+        if not lote:
+            lote = f"LOT-{orden.folio}-{timezone.now().strftime('%Y%m%d')}"
+
+        folio_ent = generar_folio_entrega(orden)
+
+        entrega = EntregaParcialProduccion.objects.create(
+            orden=orden,
+            folio_entrega=folio_ent,
+            cantidad_notificada=cant_notif_dec,
+            lote_fabricacion=lote,
+            usuario_notifica=usuario_produccion,
+            observaciones_produccion=observaciones,
+            estado=EntregaParcialProduccion.PENDIENTE
+        )
+
+        # Proporción de insumos correspondiente a esta entrega parcial
+        factor = cant_notif_dec / orden.cantidad_a_producir if orden.cantidad_a_producir > Decimal('0') else Decimal('1.0')
+
+        for item_op in orden.insumos_detalle.select_related('insumo'):
+            cant_estimada_parcial = round(item_op.cantidad_estimada * factor, 6)
+
+            # Si se enviaron consumos reales específicos
+            if consumos_dict and (str(item_op.id) in consumos_dict or str(item_op.insumo_id) in consumos_dict):
+                clave = str(item_op.id) if str(item_op.id) in consumos_dict else str(item_op.insumo_id)
+                cant_consumida_parcial = Decimal(str(consumos_dict[clave]))
+            else:
+                cant_consumida_parcial = cant_estimada_parcial
+
+            costo_unit = item_op.insumo.costo_promedio_mxn or Decimal('0.000000')
+            costo_linea = round(cant_consumida_parcial * costo_unit, 6)
+
+            EntregaParcial_Insumo.objects.create(
+                entrega=entrega,
+                insumo=item_op.insumo,
+                cantidad_estimada=cant_estimada_parcial,
+                cantidad_consumida=cant_consumida_parcial,
+                costo_unitario_mxn=costo_unit,
+                costo_total_mxn=costo_linea
+            )
+
+        return entrega
+
+
+def autorizar_entrega_parcial(entrega_id, usuario_almacen, notas_almacen=None):
+    """
+    Autorización de Almacén:
+    1. Genera las salidas de Kardex de insumos (afectando bodega origen a costo promedio MXN).
+    2. Calcula el costo unitario de la entrega parcial.
+    3. Genera la entrada de Kardex de Producto Terminado (afectando bodega destino).
+    4. Actualiza la entrega a AUTORIZADA y acumula avance en la Orden de Producción.
+    """
+    with transaction.atomic():
+        entrega = EntregaParcialProduccion.objects.select_for_update().get(id=entrega_id)
+
+        if entrega.estado != EntregaParcialProduccion.PENDIENTE:
+            raise ValueError(f"Esta entrega ya fue procesada anteriormente con estado: {entrega.get_estado_display()}")
+
+        orden = entrega.orden
+        moneda_mxn = Moneda.objects.filter(codigo='MXN').first()
+        if not moneda_mxn:
+            moneda_mxn = Moneda.objects.create(codigo='MXN', nombre='Peso Mexicano', simbolo='$')
+
+        costo_total_insumos = Decimal('0.000000')
+
+        # 1. Procesar salidas de insumos en Kardex
+        for item in entrega.insumos_detalle.select_related('insumo'):
+            costo_unitario = item.insumo.costo_promedio_mxn or Decimal('0.000000')
+            costo_linea = round(item.cantidad_consumida * costo_unitario, 6)
+            costo_total_insumos += costo_linea
+
+            item.costo_unitario_mxn = costo_unitario
+            item.costo_total_mxn = costo_linea
+            item.save()
+
+            # Descontar reserva de stock si existía
+            stock_insumo = Stock.objects.filter(
+                producto=item.insumo,
+                bodega=orden.bodega_origen_insumos
+            ).first()
+            if stock_insumo and stock_insumo.cantidad_reservada > Decimal('0'):
+                stock_insumo.cantidad_reservada = max(
+                    Decimal('0.000000'),
+                    stock_insumo.cantidad_reservada - item.cantidad_estimada
+                )
+                stock_insumo.save()
+
+            # Movimiento de SALIDA en Kardex
+            MovimientoInventario.objects.create(
+                producto=item.insumo,
+                bodega_origen=orden.bodega_origen_insumos,
+                tipo_movimiento=MovimientoInventario.SALIDA,
+                cantidad=item.cantidad_consumida,
+                costo_unitario_original=costo_unitario,
+                moneda_original=moneda_mxn,
+                tipo_cambio_aplicado=Decimal('1.000000'),
+                costo_unitario_mxn_capturado=costo_unitario,
+                referencia_operacion=f"{entrega.folio_entrega}",
+                usuario=usuario_almacen,
+                lote=entrega.lote_fabricacion,
+                observaciones=f"Consumo de insumos por entrega parcial {entrega.folio_entrega} de {orden.folio}"
+            )
+
+        # 2. Calcular costo unitario del lote parcial entregado
+        costo_unitario_pt = round(costo_total_insumos / entrega.cantidad_notificada, 6) if entrega.cantidad_notificada > Decimal('0') else Decimal('0.000000')
+
+        # 3. Movimiento de ENTRADA en Kardex para el Producto Terminado
+        MovimientoInventario.objects.create(
+            producto=orden.producto_a_fabricar,
+            bodega_destino=orden.bodega_destino_pt,
+            tipo_movimiento=MovimientoInventario.ENTRADA,
+            cantidad=entrega.cantidad_notificada,
+            costo_unitario_original=costo_unitario_pt,
+            moneda_original=moneda_mxn,
+            tipo_cambio_aplicado=Decimal('1.000000'),
+            costo_unitario_mxn_capturado=costo_unitario_pt,
+            referencia_operacion=f"{entrega.folio_entrega}",
+            usuario=usuario_almacen,
+            lote=entrega.lote_fabricacion,
+            observaciones=f"Entrada de producto terminado por entrega {entrega.folio_entrega}"
+        )
+
+        # 4. Actualizar estado de la entrega
+        entrega.estado = EntregaParcialProduccion.AUTORIZADA
+        entrega.fecha_autorizacion = timezone.now()
+        entrega.usuario_autoriza = usuario_almacen
+        entrega.notas_almacen = notas_almacen
+        entrega.costo_total_insumos_mxn = costo_total_insumos
+        entrega.costo_unitario_final_mxn = costo_unitario_pt
+        entrega.save()
+
+        # 5. Acumular avance en la Orden de Producción
+        entregas_autorizadas = orden.entregas_parciales.filter(estado=EntregaParcialProduccion.AUTORIZADA)
+        total_acumulado = sum(e.cantidad_notificada for e in entregas_autorizadas)
+        costo_acumulado = sum(e.costo_total_insumos_mxn for e in entregas_autorizadas)
+
+        orden.cantidad_producida = total_acumulado
+        orden.costo_total_insumos_mxn = costo_acumulado
+        if total_acumulado > Decimal('0'):
+            orden.costo_unitario_final_mxn = round(costo_acumulado / total_acumulado, 6)
+
+        # Si se cumplió o superó la meta solicitada, marcar como TERMINADA
+        if orden.cantidad_producida >= orden.cantidad_a_producir:
+            orden.estado = OrdenProduccion.TERMINADA
+            orden.fecha_finalizacion = timezone.now()
+            orden.usuario_finalizacion = usuario_almacen
+
+        orden.save()
+
+        return entrega
+
+
+def rechazar_entrega_parcial(entrega_id, usuario_almacen, motivo=None):
+    """
+    Rechaza una entrega parcial de producción sin afectar existencias ni Kardex.
+    """
+    with transaction.atomic():
+        entrega = EntregaParcialProduccion.objects.select_for_update().get(id=entrega_id)
+
+        if entrega.estado != EntregaParcialProduccion.PENDIENTE:
+            raise ValueError(f"Solo se pueden rechazar entregas en estado pendiente. Estado actual: {entrega.get_estado_display()}")
+
+        entrega.estado = EntregaParcialProduccion.RECHAZADA
+        entrega.fecha_autorizacion = timezone.now()
+        entrega.usuario_autoriza = usuario_almacen
+        entrega.notas_almacen = motivo
+        entrega.save()
+
+        return entrega
+
+
+def cerrar_orden_definitiva(orden_id, usuario=None):
+    """
+    Permite cerrar formalmente una OP cuando se completó la producción
+    o se decide finalizar el tiraje con lo producido hasta el momento.
+    """
+    with transaction.atomic():
+        orden = OrdenProduccion.objects.select_for_update().get(id=orden_id)
+
+        if orden.estado == OrdenProduccion.TERMINADA:
+            return orden
+
+        # Liberar cualquier stock reservado que haya quedado
+        for item in orden.insumos_detalle.all():
+            stock = Stock.objects.filter(producto=item.insumo, bodega=orden.bodega_origen_insumos).first()
+            if stock and stock.cantidad_reservada > Decimal('0'):
+                stock.cantidad_reservada = Decimal('0.000000')
+                stock.save()
+
+        orden.estado = OrdenProduccion.TERMINADA
+        orden.fecha_finalizacion = timezone.now()
+        orden.usuario_finalizacion = usuario
+        orden.save()
+        return orden
+

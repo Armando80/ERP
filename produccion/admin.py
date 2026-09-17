@@ -1,6 +1,9 @@
 # ERP Decorlata - produccion/admin.py
 from django.contrib import admin
-from .models import ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo
+from .models import (
+    ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
+    EntregaParcialProduccion, EntregaParcial_Insumo
+)
 
 
 class InsumoBOMInline(admin.TabularInline):
@@ -24,6 +27,13 @@ class OrdenProduccion_InsumoInline(admin.TabularInline):
     readonly_fields = ('costo_unitario_mxn', 'costo_total_mxn')
 
 
+class EntregaParcialInline(admin.TabularInline):
+    model = EntregaParcialProduccion
+    extra = 0
+    fields = ('folio_entrega', 'cantidad_notificada', 'lote_fabricacion', 'estado', 'fecha_notificacion')
+    readonly_fields = ('folio_entrega', 'fecha_notificacion')
+
+
 @admin.register(OrdenProduccion)
 class OrdenProduccionAdmin(admin.ModelAdmin):
     list_display = (
@@ -34,4 +44,20 @@ class OrdenProduccionAdmin(admin.ModelAdmin):
     search_fields = ('folio', 'producto_a_fabricar__nombre', 'producto_a_fabricar__sku', 'lote_fabricacion')
     readonly_fields = ('folio', 'costo_total_insumos_mxn', 'costo_unitario_final_mxn', 'fecha_inicio', 'fecha_finalizacion')
     autocomplete_fields = ['producto_a_fabricar', 'bodega_origen_insumos', 'bodega_destino_pt']
-    inlines = [OrdenProduccion_InsumoInline]
+    inlines = [OrdenProduccion_InsumoInline, EntregaParcialInline]
+
+
+class EntregaParcial_InsumoInline(admin.TabularInline):
+    model = EntregaParcial_Insumo
+    extra = 0
+    readonly_fields = ('costo_unitario_mxn', 'costo_total_mxn')
+
+
+@admin.register(EntregaParcialProduccion)
+class EntregaParcialProduccionAdmin(admin.ModelAdmin):
+    list_display = ('folio_entrega', 'orden', 'cantidad_notificada', 'lote_fabricacion', 'estado', 'fecha_notificacion', 'usuario_notifica', 'usuario_autoriza')
+    list_filter = ('estado', 'fecha_notificacion')
+    search_fields = ('folio_entrega', 'orden__folio', 'lote_fabricacion')
+    readonly_fields = ('folio_entrega', 'fecha_notificacion', 'fecha_autorizacion', 'costo_total_insumos_mxn', 'costo_unitario_final_mxn')
+    inlines = [EntregaParcial_InsumoInline]
+
