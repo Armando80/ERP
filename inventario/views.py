@@ -1,12 +1,15 @@
 # ERP/inventario/views.py
 
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Q
 from django.db import transaction
 from django.core.exceptions import ValidationError, PermissionDenied
+from decimal import Decimal
+from general.models import Moneda
+from general.services import obtener_tipo_cambio_vigente
 from .models import Producto, MovimientoInventario, Stock, Bodega, SolicitudAnulacionMovimiento
 from .forms import ProductoForm, MovimientoForm, SolicitarAnulacionForm
 from .services import (
@@ -86,7 +89,7 @@ def movimientos_view(request):
     """
     # Consulta base optimizada con relaciones para trazabilidad y estado de anulación
     movimientos = MovimientoInventario.objects.select_related(
-        'producto', 'bodega_origen', 'bodega_destino', 'usuario', 'movimiento_relacionado'
+        'producto', 'bodega_origen', 'bodega_destino', 'usuario', 'movimiento_relacionado', 'moneda_original'
     ).prefetch_related('solicitudes_anulacion').all().order_by('-fecha')
 
     # 1. Capturar los parámetros enviados por HTMX
@@ -162,7 +165,61 @@ def registrar_movimiento_view(request):
     else:
         form = MovimientoForm()
 
-    return render(request, 'inventario/partials/_movimiento_form.html', {'form': form})
+    # Pre-cargar tipos de cambio oficiales del día para dinamismo instantáneo en UI
+    tc_usd = Decimal('1.000000')
+    tc_eur = Decimal('1.000000')
+    try:
+        tc_usd = obtener_tipo_cambio_vigente('USD')
+    except Exception:
+        tc_usd = Decimal('18.190300')
+
+    try:
+        tc_eur = obtener_tipo_cambio_vigente('EUR')
+    except Exception:
+        tc_eur = Decimal('20.436800')
+
+    monedas = Moneda.objects.all().order_by('codigo')
+
+    return render(request, 'inventario/partials/_movimiento_form.html', {
+        'form': form,
+        'tc_usd': tc_usd,
+        'tc_eur': tc_eur,
+        'monedas': monedas,
+    })
+
+
+@login_required
+def tipo_cambio_moneda_api_view(request):
+    """
+    Retorna el tipo de cambio oficial vigente en formato JSON
+    para cálculo y dinamismo en el formulario de captura manual.
+    Parámetro: ?moneda=USD o ?moneda=EUR o ?moneda_id=1
+    """
+    codigo = request.GET.get('moneda', '').strip().upper()
+    moneda_id = request.GET.get('moneda_id', '').strip()
+
+    if moneda_id and not codigo:
+        m = Moneda.objects.filter(id=moneda_id).first()
+        if m:
+            codigo = m.codigo
+
+    if not codigo:
+        codigo = 'MXN'
+
+    try:
+        tc = obtener_tipo_cambio_vigente(codigo)
+        return JsonResponse({
+            'ok': True,
+            'moneda': codigo,
+            'tipo_cambio': str(tc)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'ok': False,
+            'moneda': codigo,
+            'tipo_cambio': '1.000000',
+            'error': str(e)
+        }, status=400)
 
 # Asegúrate de importar Stock en la parte superior si aún no está
 # from .models import Producto, Stock, MovimientoInventario

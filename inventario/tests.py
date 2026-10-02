@@ -399,3 +399,181 @@ class AnulacionKardexTestCase(TestCase):
         self.assertEqual(solicitud.estado, SolicitudAnulacionMovimiento.APROBADA)
         mov.refresh_from_db()
         self.assertTrue(mov.es_anulado)
+
+
+from general.models import TipoCambio
+from inventario.forms import MovimientoForm
+
+class MovimientoMultidivisaTestCase(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(username='superalmacen', password='password123', email='admin@decorlata.com')
+        self.moneda_mxn, _ = Moneda.objects.get_or_create(codigo='MXN', defaults={'nombre': 'Peso Mexicano', 'simbolo': '$'})
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar Americano', 'simbolo': '$'})
+        self.moneda_eur, _ = Moneda.objects.get_or_create(codigo='EUR', defaults={'nombre': 'Euro Zona', 'simbolo': '€'})
+
+        # Registrar tipos de cambio de prueba
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        TipoCambio.objects.update_or_create(
+            moneda_origen=self.moneda_usd,
+            fecha=hoy,
+            defaults={'valor_en_mxn': Decimal('18.190300'), 'fuente': 'TEST'}
+        )
+        TipoCambio.objects.update_or_create(
+            moneda_origen=self.moneda_eur,
+            fecha=hoy,
+            defaults={'valor_en_mxn': Decimal('20.436800'), 'fuente': 'TEST'}
+        )
+
+        self.u_pza, _ = UnidadMedida.objects.get_or_create(codigo='PZA', defaults={'nombre': 'Pieza'})
+        self.bodega, _ = Bodega.objects.get_or_create(codigo='BOD-TEST', defaults={'nombre': 'Bodega Central de Pruebas'})
+
+        self.producto = Producto.objects.create(
+            sku='TEST-VALVULA-01',
+            nombre='Válvula Spray Multidivisa',
+            tipo=Producto.COMPONENTE,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_usd,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('0.000000')
+        )
+
+    def test_entrada_manual_mxn(self):
+        """Verifica entrada en MXN con tipo de cambio 1.0"""
+        form_data = {
+            'tipo_movimiento': MovimientoInventario.ENTRADA,
+            'producto': self.producto.id,
+            'bodega_destino': self.bodega.id,
+            'cantidad': '100.00',
+            'moneda_original': self.moneda_mxn.id,
+            'costo_unitario_original': '50.00',
+            'tipo_cambio_aplicado': '1.000000',
+            'referencia_operacion': 'FAC-MXN-001',
+        }
+        form = MovimientoForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        mov = form.save(commit=False)
+        mov.usuario = self.user
+        mov.save()
+
+        mov.refresh_from_db()
+        self.assertEqual(mov.costo_unitario_mxn_capturado, Decimal('50.000000'))
+        self.assertEqual(mov.costo_unitario_original, Decimal('50.000000'))
+        self.assertEqual(mov.tipo_cambio_aplicado, Decimal('1.000000'))
+        self.assertEqual(mov.moneda_original, self.moneda_mxn)
+
+        # Verificar recálculo de costo promedio en producto
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.costo_promedio_mxn, Decimal('50.000000'))
+
+    def test_entrada_manual_usd_con_tc_banxico(self):
+        """Verifica entrada en USD y conversión automática a MXN en Kardex"""
+        form_data = {
+            'tipo_movimiento': MovimientoInventario.ENTRADA,
+            'producto': self.producto.id,
+            'bodega_destino': self.bodega.id,
+            'cantidad': '10.00',
+            'moneda_original': self.moneda_usd.id,
+            'costo_unitario_original': '10.00',
+            'tipo_cambio_aplicado': '18.190300',
+            'referencia_operacion': 'INV-USD-999',
+        }
+        form = MovimientoForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        mov = form.save(commit=False)
+        mov.usuario = self.user
+        mov.save()
+
+        mov.refresh_from_db()
+        self.assertEqual(mov.moneda_original, self.moneda_usd)
+        self.assertEqual(mov.costo_unitario_original, Decimal('10.000000'))
+        self.assertEqual(mov.tipo_cambio_aplicado, Decimal('18.190300'))
+        self.assertEqual(mov.costo_unitario_mxn_capturado, Decimal('181.903000'))
+
+        # Verificar recálculo en producto
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.costo_promedio_mxn, Decimal('181.903000'))
+
+    def test_entrada_manual_eur(self):
+        """Verifica entrada en EUR y conversión a MXN"""
+        form_data = {
+            'tipo_movimiento': MovimientoInventario.ENTRADA,
+            'producto': self.producto.id,
+            'bodega_destino': self.bodega.id,
+            'cantidad': '5.00',
+            'moneda_original': self.moneda_eur.id,
+            'costo_unitario_original': '20.00',
+            'tipo_cambio_aplicado': '20.436800',
+            'referencia_operacion': 'EUR-IMPORT-01',
+        }
+        form = MovimientoForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        mov = form.save(commit=False)
+        mov.usuario = self.user
+        mov.save()
+
+        mov.refresh_from_db()
+        self.assertEqual(mov.moneda_original, self.moneda_eur)
+        self.assertEqual(mov.costo_unitario_original, Decimal('20.000000'))
+        self.assertEqual(mov.tipo_cambio_aplicado, Decimal('20.436800'))
+        self.assertEqual(mov.costo_unitario_mxn_capturado, Decimal('408.736000'))
+
+    def test_salida_no_requiere_costo_capturado(self):
+        """Verifica que una salida fije los costos de entrada en 0 (toma el costo promedio)"""
+        # Primero crear existencia previa
+        Stock.objects.create(producto=self.producto, bodega=self.bodega, cantidad=Decimal('50.00'))
+        form_data = {
+            'tipo_movimiento': MovimientoInventario.SALIDA,
+            'producto': self.producto.id,
+            'bodega_origen': self.bodega.id,
+            'cantidad': '10.00',
+            'referencia_operacion': 'SALIDA-001',
+        }
+        form = MovimientoForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        mov = form.save(commit=False)
+        mov.usuario = self.user
+        mov.save()
+
+        mov.refresh_from_db()
+        self.assertEqual(mov.costo_unitario_mxn_capturado, Decimal('0.000000'))
+
+    def test_api_tipo_cambio_moneda(self):
+        """Verifica que el endpoint JSON devuelva el tipo de cambio de la moneda"""
+        client = Client()
+        client.force_login(self.user)
+
+        resp_usd = client.get(reverse('inventario:tipo_cambio_moneda_api') + '?moneda=USD')
+        self.assertEqual(resp_usd.status_code, 200)
+        data_usd = resp_usd.json()
+        self.assertTrue(data_usd['ok'])
+        self.assertEqual(data_usd['moneda'], 'USD')
+        self.assertEqual(Decimal(data_usd['tipo_cambio']), Decimal('18.190300'))
+
+        resp_mxn = client.get(reverse('inventario:tipo_cambio_moneda_api') + '?moneda=MXN')
+        self.assertEqual(resp_mxn.status_code, 200)
+        data_mxn = resp_mxn.json()
+        self.assertEqual(Decimal(data_mxn['tipo_cambio']), Decimal('1.000000'))
+
+    def test_flujo_htmx_registrar_movimiento_multidivisa(self):
+        """Verifica el flujo HTTP POST de registrar movimiento con HTMX"""
+        client = Client()
+        client.force_login(self.user)
+
+        resp = client.post(reverse('inventario:registrar_movimiento'), {
+            'tipo_movimiento': MovimientoInventario.ENTRADA,
+            'producto': self.producto.id,
+            'bodega_destino': self.bodega.id,
+            'cantidad': '25.00',
+            'moneda_original': self.moneda_usd.id,
+            'costo_unitario_original': '12.50',
+            'tipo_cambio_aplicado': '18.190300',
+            'referencia_operacion': 'OC-USD-HTMX-01',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get('HX-Trigger'), 'movimientoGuardado')
+
+        mov = MovimientoInventario.objects.get(referencia_operacion='OC-USD-HTMX-01')
+        self.assertEqual(mov.costo_unitario_original, Decimal('12.500000'))
+        self.assertEqual(mov.tipo_cambio_aplicado, Decimal('18.190300'))
+        self.assertEqual(mov.costo_unitario_mxn_capturado, Decimal('227.378750'))

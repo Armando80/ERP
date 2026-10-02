@@ -230,7 +230,7 @@ def previsualizar_bom_op_view(request):
 
     for insumo_receta in bom.insumos.select_related('materia_prima', 'materia_prima__unidad_medida'):
         cant_requerida = round(insumo_receta.cantidad_con_merma * factor, 6)
-        costo_unit = insumo_receta.materia_prima.costo_promedio_mxn or Decimal('0.000000')
+        costo_unit = insumo_receta.costo_unitario_efectivo_mxn
         costo_linea = round(cant_requerida * costo_unit, 6)
         costo_estimado_total += costo_linea
 

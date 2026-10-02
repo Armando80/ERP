@@ -5,8 +5,8 @@
                 <th class="ps-4">Producto a Fabricar</th>
                 <th>Clasificación</th>
                 <th class="text-center">Cant. Base</th>
-                <th class="text-center">No. Insumos</th>
-                <th class="text-end">Costo Est. Total (MXN)</th>
+                <!-- <th class="text-center">No. Insumos</th>
+                <th class="text-end">Costo Est. Total (MXN)</th> -->
                 <th class="text-end">Costo Est. Unitario (MXN)</th>
                 <th class="text-center">Estado</th>
                 <th class="text-end pe-4">Acciones</th>
@@ -27,14 +27,14 @@
                 <td class="text-center fw-semibold text-dark">
                     {{ bom.cantidad_base|floatformat:2 }} <small class="text-muted">{{ bom.producto_terminado.unidad_medida.codigo }}</small>
                 </td>
-                <td class="text-center">
+            <!-- <td class="text-center">
                     <span class="badge rounded-pill bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2">
                         {{ bom.insumos.count }} insumos
                     </span>
                 </td>
                 <td class="text-end text-dark font-monospace">
                     ${{ bom.costo_estimado_total_mxn|floatformat:4 }}
-                </td>
+                </td> -->
                 <td class="text-end fw-bold text-dark font-monospace">
                     ${{ bom.costo_estimado_unitario_mxn|floatformat:4 }}
                 </td>

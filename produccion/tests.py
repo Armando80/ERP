@@ -4,7 +4,7 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from general.models import Moneda
+from general.models import Moneda, TipoCambio
 from inventario.models import UnidadMedida, Bodega, Producto, Stock, MovimientoInventario
 from .models import (
     ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
@@ -550,3 +550,148 @@ class ProduccionModuloTestCase(TestCase):
         entrega_rechazar.refresh_from_db()
         self.assertEqual(entrega_rechazar.estado, EntregaParcialProduccion.RECHAZADA)
         self.assertEqual(entrega_rechazar.notas_almacen, 'Material rayado')
+
+
+class CosteoMultidivisaBOMTestCase(TestCase):
+    """Pruebas unitarias para la jerarquía de costeo inteligente y conversión multidivisa en Recetas (BOM)."""
+
+    def setUp(self):
+        self.moneda_mxn, _ = Moneda.objects.get_or_create(codigo='MXN', defaults={'nombre': 'Peso Mexicano', 'simbolo': '$'})
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar Americano', 'simbolo': '$'})
+        self.moneda_eur, _ = Moneda.objects.get_or_create(codigo='EUR', defaults={'nombre': 'Euro Zona', 'simbolo': '€'})
+
+        # Registrar tipos de cambio de prueba
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        TipoCambio.objects.update_or_create(moneda_origen=self.moneda_usd, fecha=hoy, defaults={'valor_en_mxn': Decimal('18.000000'), 'fuente': 'BANXICO_FIX'})
+        TipoCambio.objects.update_or_create(moneda_origen=self.moneda_eur, fecha=hoy, defaults={'valor_en_mxn': Decimal('20.000000'), 'fuente': 'BANXICO_FIX'})
+
+        self.u_pza, _ = UnidadMedida.objects.get_or_create(codigo='PZA', defaults={'nombre': 'Pieza'})
+        self.u_kg, _ = UnidadMedida.objects.get_or_create(codigo='KG', defaults={'nombre': 'Kilogramo'})
+        self.bodega, _ = Bodega.objects.get_or_create(codigo='BOD-TEST', defaults={'nombre': 'Almacén Prueba'})
+
+        from compras.models import Proveedor
+        self.proveedor = Proveedor.objects.create(rfc='PRV990101AA1', razon_social='Proveedor Internacional Metal')
+
+    def test_costeo_insumo_comprado_en_usd_se_convierte_a_mxn(self):
+        """Un insumo con costo promedio 0 pero comprado en USD se convierte a MXN usando el TC vigente."""
+        # 1. Crear producto con costo 0 en USD
+        tapa_usd = Producto.objects.create(
+            sku='CP-TAPA-USD',
+            nombre='Tapa Metálica 18L Importada',
+            tipo=Producto.COMPONENTE,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_usd,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('0.000000')
+        )
+
+        # 2. Registrar Orden de Compra en USD con precio $0.25 USD
+        from compras.models import OrdenCompra_Maestro, OrdenCompra_Detalle
+        oc = OrdenCompra_Maestro.objects.create(
+            folio='OC-TEST-USD',
+            proveedor=self.proveedor,
+            bodega_destino=self.bodega,
+            moneda=self.moneda_usd,
+            estado='BORRADOR'
+        )
+        OrdenCompra_Detalle.objects.create(
+            orden=oc,
+            producto=tapa_usd,
+            cantidad=Decimal('1000.00'),
+            precio_unitario=Decimal('0.250000')
+        )
+
+        # 3. Crear Producto Terminado y Receta
+        envase_pt = Producto.objects.create(
+            sku='PT-ENVASE-18L',
+            nombre='Envase 18 Litros',
+            tipo=Producto.PRODUCTO_TERMINADO,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn
+        )
+        bom = ListaMaterialesBOM.objects.create(
+            producto_terminado=envase_pt,
+            cantidad_base=Decimal('100.0000')
+        )
+        # 100 pzas requeridas con 0% merma
+        insumo_bom = InsumoBOM.objects.create(
+            bom=bom,
+            materia_prima=tapa_usd,
+            cantidad_requerida=Decimal('100.000000'),
+            porcentaje_merma=Decimal('0.00')
+        )
+
+        # 4. Validar costo unitario efectivo: 0.25 USD * 18.00 MXN/USD = 4.50 MXN
+        self.assertEqual(insumo_bom.costo_unitario_efectivo_mxn, Decimal('4.500000'))
+        self.assertEqual(insumo_bom.costo_info['origen'], 'OC')
+        self.assertEqual(insumo_bom.costo_info['moneda_origen'], 'USD')
+
+        # Costo de línea: 100 * 4.50 = 450.00 MXN
+        self.assertEqual(insumo_bom.costo_estimado_linea_mxn, Decimal('450.000000'))
+
+        # Total BOM: 450.00 MXN, Costo Unitario BOM: 450 / 100 = 4.50 MXN
+        self.assertEqual(bom.costo_estimado_total_mxn, Decimal('450.000000'))
+        self.assertEqual(bom.costo_estimado_unitario_mxn, Decimal('4.500000'))
+
+    def test_costeo_sub_ensamble_cascada(self):
+        """Un producto intermedio (plantilla) sin stock en Kardex toma el costo de su sub-receta."""
+        # 1. Materia prima base con costo en Kardex
+        hojalata = Producto.objects.create(
+            sku='MP-HOJ-PRUEBA',
+            nombre='Hojalata Base',
+            tipo=Producto.MATERIA_PRIMA,
+            unidad_medida=self.u_kg,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('30.000000')
+        )
+
+        # 2. Sub-ensamble (Plantilla CC) con costo de almacén 0, pero con receta propia
+        plantilla = Producto.objects.create(
+            sku='CC-PLANTILLA-TEST',
+            nombre='Plantilla Cortada',
+            tipo=Producto.PLANTILLA,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('0.000000')
+        )
+        # Receta de la plantilla: Base 10 pzas requiere 2 kg hojalata (2 * 30 = 60 MXN -> 6 MXN/pza)
+        bom_plantilla = ListaMaterialesBOM.objects.create(
+            producto_terminado=plantilla,
+            cantidad_base=Decimal('10.0000')
+        )
+        InsumoBOM.objects.create(
+            bom=bom_plantilla,
+            materia_prima=hojalata,
+            cantidad_requerida=Decimal('2.000000'),
+            porcentaje_merma=Decimal('0.00')
+        )
+        self.assertEqual(bom_plantilla.costo_estimado_unitario_mxn, Decimal('6.000000'))
+
+        # 3. Producto Terminado que usa la plantilla
+        bote = Producto.objects.create(
+            sku='PT-BOTE-TEST',
+            nombre='Bote Terminado Prueba',
+            tipo=Producto.PRODUCTO_TERMINADO,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn
+        )
+        bom_bote = ListaMaterialesBOM.objects.create(
+            producto_terminado=bote,
+            cantidad_base=Decimal('1.0000')
+        )
+        insumo_bote = InsumoBOM.objects.create(
+            bom=bom_bote,
+            materia_prima=plantilla,
+            cantidad_requerida=Decimal('1.000000'),
+            porcentaje_merma=Decimal('0.00')
+        )
+
+        # Debe resolver el costo unitario de la plantilla a 6.00 MXN vía SUB_BOM
+        self.assertEqual(insumo_bote.costo_unitario_efectivo_mxn, Decimal('6.000000'))
+        self.assertEqual(insumo_bote.costo_info['origen'], 'SUB_BOM')
+        self.assertEqual(bom_bote.costo_estimado_unitario_mxn, Decimal('6.000000'))

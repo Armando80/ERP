@@ -39,10 +39,27 @@
                 <td class="text-center fw-bold text-dark">
                     {{ insumo.cantidad_con_merma|floatformat:4 }} <small class="text-muted">{{ insumo.materia_prima.unidad_medida.codigo }}</small>
                 </td>
-                <td class="text-end text-dark font-monospace">
-                    ${{ insumo.materia_prima.costo_promedio_mxn|floatformat:4 }}
+                <td class="text-end">
+                    <div class="font-monospace fw-bold text-dark">${{ insumo.costo_unitario_efectivo_mxn|floatformat:4 }} <small class="text-muted fw-normal">MXN</small></div>
+                    {% if insumo.costo_info.origen == 'OC' %}
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 mt-1" style="font-size: 0.65rem;" title="Convertido desde {{ insumo.costo_info.moneda_origen }} con Banxico (TC: {{ insumo.costo_info.tipo_cambio|floatformat:4 }} MXN/{{ insumo.costo_info.moneda_origen }} - OC {{ insumo.costo_info.referencia }})">
+                            <i class="bi bi-currency-exchange me-1"></i>{{ insumo.costo_info.costo_original|floatformat:4 }} {{ insumo.costo_info.moneda_origen }} &times; {{ insumo.costo_info.tipo_cambio|floatformat:2 }}
+                        </span>
+                    {% elif insumo.costo_info.origen == 'SUB_BOM' %}
+                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25 mt-1" style="font-size: 0.65rem;" title="Costo unitario teórico de su receta de manufactura {{ insumo.costo_info.referencia }}">
+                            <i class="bi bi-diagram-3 me-1"></i>Sub-receta {{ insumo.costo_info.referencia }}
+                        </span>
+                    {% elif insumo.costo_info.origen == 'KARDEX' %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 mt-1" style="font-size: 0.65rem;" title="Costo promedio ponderado en Kardex">
+                            <i class="bi bi-box-seam me-1"></i>Kardex
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-muted border mt-1" style="font-size: 0.65rem;" title="Sin costo histórico registrado">
+                            <i class="bi bi-dash-circle me-1"></i>Sin costo
+                        </span>
+                    {% endif %}
                 </td>
-                <td class="text-end fw-bold text-dark font-monospace">
+                <td class="text-end fw-bold text-dark font-monospace fs-6">
                     ${{ insumo.costo_estimado_linea_mxn|floatformat:4 }}
                 </td>
                 <td class="text-center pe-4">

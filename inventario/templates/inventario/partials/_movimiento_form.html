@@ -1,7 +1,7 @@
-<form hx-post="{% url 'inventario:registrar_movimiento' %}" hx-target="#form-movimiento-container">
+<form hx-post="{% url 'inventario:registrar_movimiento' %}" hx-target="#form-movimiento-container" id="form-registro-movimiento">
     {% csrf_token %}
     
-    <!-- Mostrar Errores de Validación (como stock insuficiente) -->
+    <!-- Mostrar Errores de Validación Generales -->
     {% if form.non_field_errors %}
         <div class="alert alert-danger small py-2 mb-3">
             <ul class="mb-0 ps-3">
@@ -12,62 +12,267 @@
         </div>
     {% endif %}
 
-    <div class="alert alert-info small border-0 bg-primary bg-opacity-10 text-primary">
+    <div class="alert alert-info small border-0 bg-primary bg-opacity-10 text-primary mb-3">
         <i class="bi bi-info-circle-fill me-2"></i>
-        Las <strong>Entradas</strong> requieren Bodega Destino. Las <strong>Salidas</strong> requieren Bodega Origen.
+        Las <strong>Entradas</strong> requieren Bodega Destino y cálculo de costo. Las <strong>Salidas</strong> toman el costo promedio ponderado en Kardex.
     </div>
 
+    <!-- 1. Tipo de Movimiento -->
     <div class="mb-3">
         <label class="form-label fw-semibold text-secondary small">Tipo de Movimiento</label>
         {{ form.tipo_movimiento }}
         {{ form.tipo_movimiento.errors }}
     </div>
 
+    <!-- 2. Producto / SKU -->
     <div class="mb-3">
         <label class="form-label fw-semibold text-secondary small">Producto / SKU</label>
         {{ form.producto }}
         {{ form.producto.errors }}
     </div>
 
+    <!-- 3. Bodegas Origen y Destino -->
     <div class="row g-2 mb-3">
-        <div class="col-6">
+        <div class="col-6" id="col-bodega-origen">
             <label class="form-label fw-semibold text-secondary small">Bodega Origen</label>
             {{ form.bodega_origen }}
             {{ form.bodega_origen.errors }}
         </div>
-        <div class="col-6">
+        <div class="col-6" id="col-bodega-destino">
             <label class="form-label fw-semibold text-secondary small">Bodega Destino</label>
             {{ form.bodega_destino }}
             {{ form.bodega_destino.errors }}
         </div>
     </div>
 
-    <div class="row g-2 mb-3">
-        <div class="col-6">
-            <label class="form-label fw-semibold text-secondary small">Cantidad</label>
-            {{ form.cantidad }}
-            {{ form.cantidad.errors }}
-        </div>
-        <div class="col-6">
-            <label class="form-label fw-semibold text-secondary small">Costo Unit. (MXN)</label>
-            {{ form.costo_unitario_mxn_capturado }}
-            {{ form.costo_unitario_mxn_capturado.errors }}
-        </div>
-    </div>
-
+    <!-- 4. Cantidad -->
     <div class="mb-3">
-        <label class="form-label fw-semibold text-secondary small">Referencia</label>
-        {{ form.referencia_operacion }}
+        <label class="form-label fw-semibold text-secondary small">Cantidad a Mover</label>
+        {{ form.cantidad }}
+        {{ form.cantidad.errors }}
     </div>
 
+    <!-- 5. BLOQUE MULTIDIVISA Y COSTO UNITARIO (Para Entradas de Inventario) -->
+    <div class="card border border-primary border-opacity-25 bg-light bg-opacity-50 p-3 mb-3" id="bloque-costo-multidivisa">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="fw-bold text-dark small mb-0">
+                <i class="bi bi-currency-exchange text-primary me-1"></i> Costo y Multidivisa de Entrada
+            </label>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small" id="badge-fuente-tc">
+                Banxico SIE Oficial
+            </span>
+        </div>
+
+        <div class="row g-2 mb-2">
+            <!-- Selector de Moneda de Origen -->
+            <div class="col-5">
+                <label class="form-label fw-semibold text-secondary small mb-1">Moneda Origen</label>
+                {{ form.moneda_original }}
+                {{ form.moneda_original.errors }}
+            </div>
+
+            <!-- Costo Unitario en Moneda Original -->
+            <div class="col-7">
+                <label class="form-label fw-semibold text-secondary small mb-1">
+                    Costo Unit. (<span id="label-simbolo-moneda">$</span>)
+                </label>
+                {{ form.costo_unitario_original }}
+                {{ form.costo_unitario_original.errors }}
+            </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+            <!-- Tipo de Cambio Aplicado -->
+            <div class="col-5">
+                <label class="form-label fw-semibold text-secondary small mb-1">Tipo de Cambio</label>
+                {{ form.tipo_cambio_aplicado }}
+                {{ form.tipo_cambio_aplicado.errors }}
+            </div>
+
+            <!-- Costo Resultante en MXN (Campo Oficial Contable) -->
+            <div class="col-7">
+                <label class="form-label fw-semibold text-secondary small mb-1">Costo Unit. (MXN)</label>
+                {{ form.costo_unitario_mxn_capturado }}
+                {{ form.costo_unitario_mxn_capturado.errors }}
+            </div>
+        </div>
+
+        <!-- Previsualización Dinámica de Conversión y Total -->
+        <div class="p-2 rounded bg-white border border-secondary border-opacity-25 mt-2" id="resumen-conversion-mxn">
+            <div class="d-flex justify-content-between align-items-center small">
+                <span class="text-muted">Equivalencia Unitaria:</span>
+                <span class="fw-bold text-dark font-monospace" id="preview-unitario-mxn">$0.00 MXN</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center small mt-1">
+                <span class="text-muted">Total de la Entrada:</span>
+                <span class="fw-bold text-success font-monospace" id="preview-total-mxn">$0.00 MXN</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aviso para Salidas o Transferencias (Costo Automático por Kardex) -->
+    <div class="alert alert-secondary small py-2 mb-3 d-none" id="aviso-costo-promedio">
+        <i class="bi bi-calculator me-1 text-primary"></i>
+        En <strong>Salidas</strong> y <strong>Transferencias</strong>, el costo se determina automáticamente por el <strong>Costo Promedio Ponderado</strong> del Kardex en MXN.
+    </div>
+
+    <!-- 6. Referencia de Operación -->
+    <div class="mb-3">
+        <label class="form-label fw-semibold text-secondary small">Referencia / Folio</label>
+        {{ form.referencia_operacion }}
+        {{ form.referencia_operacion.errors }}
+    </div>
+
+    <!-- 7. Observaciones -->
     <div class="mb-4">
         <label class="form-label fw-semibold text-secondary small">Observaciones</label>
         {{ form.observaciones }}
+        {{ form.observaciones.errors }}
     </div>
 
+    <!-- Botón de Envío -->
     <div class="d-grid mt-4">
-        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm">
+        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm" id="btn-procesar-movimiento">
             <i class="bi bi-save me-2"></i>Procesar Movimiento
         </button>
     </div>
 </form>
+
+<script>
+(function() {
+    // Mapa de Tipos de Cambio oficiales precargados desde el servidor
+    const TIPOS_CAMBIO = {
+        'MXN': 1.0,
+        'USD': parseFloat("{{ tc_usd|default:'18.1903' }}") || 18.1903,
+        'EUR': parseFloat("{{ tc_eur|default:'20.4368' }}") || 20.4368
+    };
+
+    const selectTipoMov = document.getElementById('id_tipo_movimiento');
+    const selectMoneda = document.getElementById('id_moneda_original');
+    const inputCostoOrig = document.getElementById('id_costo_unitario_original');
+    const inputTC = document.getElementById('id_tipo_cambio_aplicado');
+    const inputCostoMXN = document.getElementById('id_costo_unitario_mxn_capturado');
+    const inputCantidad = document.getElementById('id_cantidad');
+    const bloqueCosto = document.getElementById('bloque-costo-multidivisa');
+    const avisoCosto = document.getElementById('aviso-costo-promedio');
+    const badgeFuente = document.getElementById('badge-fuente-tc');
+    const labelSimbolo = document.getElementById('label-simbolo-moneda');
+    const previewUnitario = document.getElementById('preview-unitario-mxn');
+    const previewTotal = document.getElementById('preview-total-mxn');
+
+    // Obtener el código de la moneda seleccionada en el select
+    function obtenerCodigoMonedaSeleccionada() {
+        if (!selectMoneda) return 'MXN';
+        const opt = selectMoneda.options[selectMoneda.selectedIndex];
+        if (!opt) return 'MXN';
+        const texto = opt.text.toUpperCase();
+        if (texto.includes('USD')) return 'USD';
+        if (texto.includes('EUR')) return 'EUR';
+        return 'MXN';
+    }
+
+    // Actualiza la visibilidad de los bloques según el tipo de movimiento (E, S, T, A)
+    function actualizarVisibilidadTipo() {
+        if (!selectTipoMov) return;
+        const tipo = selectTipoMov.value;
+
+        if (tipo === 'E') {
+            if (bloqueCosto) bloqueCosto.classList.remove('d-none');
+            if (avisoCosto) avisoCosto.classList.add('d-none');
+            if (inputCostoOrig) inputCostoOrig.required = true;
+        } else {
+            if (bloqueCosto) bloqueCosto.classList.add('d-none');
+            if (avisoCosto) avisoCosto.classList.remove('d-none');
+            if (inputCostoOrig) inputCostoOrig.required = false;
+        }
+    }
+
+    // Actualiza el tipo de cambio oficial cuando el usuario cambia de moneda
+    function actualizarMoneda(esCambioUsuario) {
+        const codigo = obtenerCodigoMonedaSeleccionada();
+
+        // Actualizar símbolo visual
+        if (labelSimbolo) {
+            labelSimbolo.textContent = (codigo === 'EUR') ? '€' : '$';
+        }
+
+        if (codigo === 'MXN') {
+            if (inputTC) {
+                inputTC.value = '1.000000';
+                inputTC.readOnly = true;
+                inputTC.classList.add('bg-light');
+            }
+            if (badgeFuente) badgeFuente.textContent = 'Moneda Base (1:1)';
+        } else {
+            if (inputTC) {
+                inputTC.readOnly = false;
+                inputTC.classList.remove('bg-light');
+                // Si el usuario acaba de cambiar la moneda, colocamos el tipo de cambio del día
+                if (esCambioUsuario || !inputTC.value || parseFloat(inputTC.value) === 1.0) {
+                    const tcOficial = TIPOS_CAMBIO[codigo] || 1.0;
+                    inputTC.value = tcOficial.toFixed(4);
+                }
+            }
+            if (badgeFuente) {
+                badgeFuente.textContent = (codigo === 'USD') ? 'Banxico FIX USD' : 'Banxico / BCE EUR';
+            }
+        }
+
+        calcularCostoMXN();
+    }
+
+    // Calcula costo unitario MXN y costo total de la entrada en tiempo real
+    function calcularCostoMXN() {
+        const costoOrig = parseFloat(inputCostoOrig ? inputCostoOrig.value : 0) || 0;
+        const tc = parseFloat(inputTC ? inputTC.value : 1) || 1;
+        const cantidad = parseFloat(inputCantidad ? inputCantidad.value : 0) || 0;
+
+        const costoMXN = costoOrig * tc;
+        const totalMXN = cantidad * costoMXN;
+
+        if (inputCostoMXN) {
+            inputCostoMXN.value = costoMXN > 0 ? costoMXN.toFixed(4) : '';
+        }
+
+        const codigo = obtenerCodigoMonedaSeleccionada();
+        const simbolo = (codigo === 'EUR') ? '€' : '$';
+
+        if (previewUnitario) {
+            previewUnitario.textContent = `${simbolo}${costoOrig.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 4})} ${codigo} × ${tc.toFixed(4)} = $${costoMXN.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 4})} MXN`;
+        }
+        if (previewTotal) {
+            previewTotal.textContent = `$${totalMXN.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})} MXN`;
+        }
+    }
+
+    // Eventos interactivos
+    if (selectTipoMov) {
+        selectTipoMov.addEventListener('change', function() {
+            actualizarVisibilidadTipo();
+            calcularCostoMXN();
+        });
+    }
+
+    if (selectMoneda) {
+        selectMoneda.addEventListener('change', function() {
+            actualizarMoneda(true);
+        });
+    }
+
+    if (inputCostoOrig) {
+        inputCostoOrig.addEventListener('input', calcularCostoMXN);
+    }
+
+    if (inputTC) {
+        inputTC.addEventListener('input', calcularCostoMXN);
+    }
+
+    if (inputCantidad) {
+        inputCantidad.addEventListener('input', calcularCostoMXN);
+    }
+
+    // Inicialización al renderizar el formulario
+    actualizarVisibilidadTipo();
+    actualizarMoneda(false);
+})();
+</script>

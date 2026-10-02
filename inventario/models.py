@@ -87,6 +87,15 @@ class Producto(models.Model):
     def __str__(self):
         return f"{self.nombre} ({self.sku})"
 
+    @property
+    def costo_unitario_referencia_mxn(self):
+        """
+        Retorna el costo unitario de referencia en MXN para este producto
+        (Kardex, sub-receta o última compra en divisa extranjera con Banxico).
+        """
+        from produccion.services import resolver_costo_unitario_producto_mxn
+        return resolver_costo_unitario_producto_mxn(self)['costo_mxn']
+
 
 class Stock(models.Model):
     """Stock actual y ubicaciones específicas."""

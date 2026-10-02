@@ -10,6 +10,104 @@ from .models import (
 )
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
+def resolver_costo_unitario_producto_mxn(producto, fecha=None, visitados=None):
+    """
+    Resuelve el costo unitario de referencia en MXN para un producto siguiendo
+    la jerarquía de costeo industrial multidivisa:
+    1. Kardex / Existencia: Si costo_promedio_mxn > 0, se utiliza este costo real ponderado.
+    2. Sub-ensamble / Receta activa: Si el producto es manufacturado (ej. Plantilla CC)
+       y tiene receta activa, calcula el costo estimado unitario de dicha sub-receta.
+    3. Compras / Cotizaciones (OC): Si no hay costo en almacén, busca la última Orden
+       de Compra registrada. Si la orden está en USD o EUR, se convierte a MXN al
+       tipo de cambio oficial vigente (Banxico/DOF).
+    4. Costo base de catálogo: 0.000000 si no hay información previa.
+    """
+    if visitados is None:
+        visitados = set()
+
+    # Prevenir recursión infinita en recetas circulares
+    if producto.id in visitados:
+        return {
+            'costo_mxn': Decimal('0.000000'),
+            'moneda_origen': producto.moneda_base_costo.codigo if producto.moneda_base_costo else 'MXN',
+            'costo_original': Decimal('0.000000'),
+            'tipo_cambio': Decimal('1.000000'),
+            'origen': 'CIRCULAR',
+            'referencia': 'Recursión circular detectada'
+        }
+
+    visitados_copia = set(visitados)
+    visitados_copia.add(producto.id)
+
+    # 1. Costo promedio ponderado en Kardex (si es mayor a 0)
+    if producto.costo_promedio_mxn and producto.costo_promedio_mxn > Decimal('0'):
+        return {
+            'costo_mxn': producto.costo_promedio_mxn,
+            'moneda_origen': 'MXN',
+            'costo_original': producto.costo_promedio_mxn,
+            'tipo_cambio': Decimal('1.000000'),
+            'origen': 'KARDEX',
+            'referencia': 'Almacén / Kardex'
+        }
+
+    # 2. Si es un sub-ensamble fabricado con receta activa (BOM)
+    sub_bom = getattr(producto, 'receta_bom', None)
+    if sub_bom and sub_bom.activo:
+        costo_sub = sub_bom.calcular_costo_estimado_unitario_mxn(visitados=visitados_copia)
+        if costo_sub > Decimal('0'):
+            return {
+                'costo_mxn': costo_sub,
+                'moneda_origen': 'MXN',
+                'costo_original': costo_sub,
+                'tipo_cambio': Decimal('1.000000'),
+                'origen': 'SUB_BOM',
+                'referencia': sub_bom.producto_terminado.sku
+            }
+
+    # 3. Buscar en la última Orden de Compra (incluso si está en Borrador o Autorizada)
+    from compras.models import OrdenCompra_Detalle
+    oc_det = OrdenCompra_Detalle.objects.filter(
+        producto=producto,
+        precio_unitario__gt=Decimal('0')
+    ).select_related('orden__moneda').order_by('-orden__fecha_emision').first()
+
+    if oc_det:
+        moneda_oc = oc_det.orden.moneda
+        precio_orig = oc_det.precio_unitario
+        fecha_eval = fecha or (oc_det.orden.fecha_emision.date() if oc_det.orden.fecha_emision else None)
+        try:
+            from general.services import obtener_tipo_cambio_vigente
+            tc = obtener_tipo_cambio_vigente(moneda_oc, fecha=fecha_eval)
+        except Exception as e:
+            logger.warning("No se pudo obtener TC para %s: %s. Usando 1.0", moneda_oc, e)
+            tc = Decimal('1.000000')
+
+        costo_mxn = round(precio_orig * tc, 6)
+        return {
+            'costo_mxn': costo_mxn,
+            'moneda_origen': moneda_oc.codigo,
+            'costo_original': precio_orig,
+            'tipo_cambio': tc,
+            'origen': 'OC',
+            'referencia': oc_det.orden.folio
+        }
+
+    # 4. Sin costo registrado
+    codigo_mon = producto.moneda_base_costo.codigo if producto.moneda_base_costo else 'MXN'
+    return {
+        'costo_mxn': Decimal('0.000000'),
+        'moneda_origen': codigo_mon,
+        'costo_original': Decimal('0.000000'),
+        'tipo_cambio': Decimal('1.000000'),
+        'origen': 'SIN_COSTO',
+        'referencia': 'Sin costo histórico'
+    }
+
+
 def generar_folio_produccion():
     """Genera un folio secuencial por año, ej: OP-2026-0001"""
     year = timezone.now().year
@@ -64,7 +162,7 @@ def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_desti
             factor = cantidad_decimal / bom.cantidad_base
             for insumo_receta in bom.insumos.select_related('materia_prima'):
                 cant_estimada = round(insumo_receta.cantidad_con_merma * factor, 6)
-                costo_unit = insumo_receta.materia_prima.costo_promedio_mxn or Decimal('0.000000')
+                costo_unit = insumo_receta.costo_unitario_efectivo_mxn
                 costo_tot = round(cant_estimada * costo_unit, 6)
 
                 OrdenProduccion_Insumo.objects.create(

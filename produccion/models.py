@@ -47,20 +47,28 @@ class ListaMaterialesBOM(models.Model):
     def __str__(self):
         return f"BOM: {self.producto_terminado.sku} - {self.producto_terminado.nombre} (Base: {self.cantidad_base})"
 
+    def calcular_costo_estimado_total_mxn(self, visitados=None):
+        """Calcula el costo total estimado de los insumos para la cantidad base."""
+        total = Decimal('0.000000')
+        for insumo in self.insumos.select_related('materia_prima', 'materia_prima__moneda_base_costo'):
+            total += insumo.calcular_costo_estimado_linea_mxn(visitados=visitados)
+        return round(total, 6)
+
     @property
     def costo_estimado_total_mxn(self):
         """Calcula el costo total estimado de los insumos para la cantidad base."""
-        total = Decimal('0.000000')
-        for insumo in self.insumos.select_related('materia_prima'):
-            total += insumo.costo_estimado_linea_mxn
-        return round(total, 6)
+        return self.calcular_costo_estimado_total_mxn()
+
+    def calcular_costo_estimado_unitario_mxn(self, visitados=None):
+        """Calcula el costo unitario estimado (por pieza) de fabricar este producto."""
+        if self.cantidad_base and self.cantidad_base > Decimal('0'):
+            return round(self.calcular_costo_estimado_total_mxn(visitados=visitados) / self.cantidad_base, 6)
+        return Decimal('0.000000')
 
     @property
     def costo_estimado_unitario_mxn(self):
         """Calcula el costo unitario estimado (por pieza) de fabricar este producto."""
-        if self.cantidad_base and self.cantidad_base > Decimal('0'):
-            return round(self.costo_estimado_total_mxn / self.cantidad_base, 6)
-        return Decimal('0.000000')
+        return self.calcular_costo_estimado_unitario_mxn()
 
 
 class InsumoBOM(models.Model):
@@ -108,11 +116,32 @@ class InsumoBOM(models.Model):
         factor = Decimal('1.00') + (self.porcentaje_merma / Decimal('100.00'))
         return round(self.cantidad_requerida * factor, 6)
 
+    def obtener_costo_info(self, visitados=None):
+        """Retorna el desglose del costo unitario en MXN y su procedencia."""
+        from produccion.services import resolver_costo_unitario_producto_mxn
+        return resolver_costo_unitario_producto_mxn(self.materia_prima, visitados=visitados)
+
+    @property
+    def costo_info(self):
+        """Retorna el desglose del costo unitario en MXN y su procedencia (cacheado por instancia)."""
+        if not hasattr(self, '_costo_info_cache'):
+            self._costo_info_cache = self.obtener_costo_info()
+        return self._costo_info_cache
+
+    @property
+    def costo_unitario_efectivo_mxn(self):
+        """Costo unitario resuelto en pesos mexicanos (MXN)."""
+        return self.costo_info['costo_mxn']
+
+    def calcular_costo_estimado_linea_mxn(self, visitados=None):
+        """Calcula el costo proyectado en MXN considerando la jerarquía de costeo."""
+        costo_info = self.obtener_costo_info(visitados=visitados)
+        return round(self.cantidad_con_merma * costo_info['costo_mxn'], 6)
+
     @property
     def costo_estimado_linea_mxn(self):
-        """Calcula el costo proyectado de este insumo con base en su costo promedio ponderado en MXN."""
-        costo_unitario = self.materia_prima.costo_promedio_mxn or Decimal('0.000000')
-        return round(self.cantidad_con_merma * costo_unitario, 6)
+        """Calcula el costo proyectado de este insumo con base en su costo unitario efectivo en MXN."""
+        return self.calcular_costo_estimado_linea_mxn()
 
 
 class OrdenProduccion(models.Model):
