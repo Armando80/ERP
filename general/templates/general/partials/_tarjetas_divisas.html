@@ -1,0 +1,44 @@
+{% if messages %}
+<div class="col-12 mb-2">
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 py-2 small" role="alert">
+            <i class="bi {% if message.tags == 'success' %}bi-check-circle-fill text-success{% else %}bi-exclamation-triangle-fill text-danger{% endif %} me-1"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% for card in currencies %}
+<div class="col-12 col-md-4">
+    <div class="card border-0 shadow-sm py-2 px-3 border-start border-{{ card.style }} border-4 h-100">
+        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h6 class="text-muted mb-0 small fw-bold">{{ card.name }}</h6>
+                    {% if not card.mxn %}
+                        <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.65rem;">
+                            {{ card.fuente }}
+                        </span>
+                    {% endif %}
+                </div>
+                <h3 class="mb-0 fw-bold text-dark">
+                    ${{ card.rate|floatformat:4 }} <small class="fs-6 text-muted">MXN</small>
+                </h3>
+                <small class="text-muted">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    {% if card.mxn %}
+                        Base Contable Nacional
+                    {% else %}
+                        Oficial: <strong>{{ card.update_date|date:"d/M/Y" }}</strong>
+                    {% endif %}
+                </small>
+            </div>
+            <div class="bg-{{ card.style }} bg-opacity-10 p-3 rounded-circle text-{{ card.style }}">
+                <i class="bi bi-{{ card.icon }} fs-4"></i>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}

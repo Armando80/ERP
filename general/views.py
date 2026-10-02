@@ -1,67 +1,120 @@
-from django.shortcuts import render
-#from django.contrib.auth.decorators import login_required actualizacion
-from .models import TipoCambio # Importamos tu modelo
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.utils import timezone
 from decimal import Decimal
 import datetime
 
-#@login_required # Obliga a que inicien sesión antes de ver el ERP
-def dashboard_view(request):
-    """
-    Vista principal para el Dashboard General de ERP México (Decorlata S.A. de C.V.).
-    Esta vista consulta los modelos de Moneda y TipoCambio dinámicamente.
-    """
-    
-    # --- Lógica de Negocio: Fase 1 (Base Multidivisa) ---
-    
-    # 1. Obtener la fecha de hoy
-    hoy = datetime.date.today()
-    
-    # Simulamos el día anterior como exige el SAT en CFDI 4.0.
-    # En producción, esto vendría de una consulta automática a Banxico.
-    fecha_consulta = hoy - datetime.timedelta(days=1)
+import logging
+from .models import TipoCambio, Moneda
+from .services import (
+    sincronizar_tipos_cambio_banxico,
+    sincronizar_tipos_cambio_automatico,
+    BanxicoAPIError,
+)
 
-    # 2. Consultar el tipo de cambio del día para USD y EUR.
-    # Usamos .filter() para obtener una lista y .order_by('moneda_origen__codigo')
-    # para asegurar un orden fijo (USD, luego EUR) en la plantilla.
-    tipos_cambio = TipoCambio.objects.filter(
-        moneda_origen__codigo__in=['USD', 'EUR'],
-        # fecha=fecha_consulta # Comentado para simulaciones flexibles
-    ).order_by('moneda_origen__codigo')
+logger = logging.getLogger(__name__)
 
-    # 3. Construimos la lista de tarjetas de moneda para el template
-    # Replicamos el diseño exacto de image_8.png y general_dashboard.
+
+def obtener_tarjetas_moneda(auto_sincronizar=True):
+    """
+    Construye la lista estructurada de divisas para el Dashboard
+    obteniendo el tipo de cambio oficial más reciente de cada divisa extranjera.
+    Si auto_sincronizar=True y no hay cotización para hoy, sincroniza de forma desatendida.
+    """
+    hoy = timezone.now().date()
+
+    if auto_sincronizar:
+        hay_usd_hoy = TipoCambio.objects.filter(moneda_origen__codigo='USD', fecha=hoy).exists()
+        if not hay_usd_hoy:
+            try:
+                sincronizar_tipos_cambio_automatico()
+            except Exception as e:
+                logger.warning("Auto-sincronización automática de divisas en Dashboard: %s", e)
+
     currency_cards = []
-    
-    # Agregamos dinámicamente las tarjetas de USD y EUR de la base de datos
-    for tc in tipos_cambio:
-        style = 'primary' if tc.moneda_origen.codigo == 'USD' else 'warning'
-        icon = 'dollar' if tc.moneda_origen.codigo == 'USD' else 'euro'
-        name = 'DÓLAR AMERICANO' if tc.moneda_origen.codigo == 'USD' else 'EURO ZONA'
-        
-        currency_cards.append({
-            'code': tc.moneda_origen.codigo,
-            'name': name,
-            'rate': tc.valor_en_mxn, # Valor real poblado
-            'style': style,
-            'icon': icon,
-            'update_date': tc.fecha, # Fecha real de actualización
-        })
 
-    # Agregamos la tarjeta de la moneda local (MXN) como base
+    # 1. Dólar Americano (FIX)
+    tc_usd = TipoCambio.objects.filter(moneda_origen__codigo='USD').order_by('-fecha').first()
+    currency_cards.append({
+        'code': 'USD',
+        'name': 'DÓLAR AMERICANO (FIX)',
+        'rate': tc_usd.valor_en_mxn if tc_usd else Decimal('0.0000'),
+        'style': 'primary',
+        'icon': 'currency-dollar',
+        'update_date': tc_usd.fecha if tc_usd else hoy,
+        'fuente': tc_usd.fuente if tc_usd else 'Sin registro',
+        'mxn': False,
+    })
+
+    # 2. Euro Zona (DEG / Banxico / BCE)
+    tc_eur = TipoCambio.objects.filter(moneda_origen__codigo='EUR').order_by('-fecha').first()
+    currency_cards.append({
+        'code': 'EUR',
+        'name': 'EURO ZONA',
+        'rate': tc_eur.valor_en_mxn if tc_eur else Decimal('0.0000'),
+        'style': 'warning',
+        'icon': 'currency-euro',
+        'update_date': tc_eur.fecha if tc_eur else hoy,
+        'fuente': tc_eur.fuente if tc_eur else 'Sin registro',
+        'mxn': False,
+    })
+
+    # 3. Moneda Local (MXN)
     currency_cards.append({
         'code': 'MXN',
         'name': 'MONEDA LOCAL',
-        'rate': Decimal('1.0000'), # MXN siempre es 1.0000 frente a sí mismo
+        'rate': Decimal('1.0000'),
         'style': 'success',
         'icon': 'cash-stack',
         'update_date': hoy,
-        'mxn': True, # Marca especial para el template
+        'fuente': 'BASE',
+        'mxn': True,
     })
 
-    # 4. Crear el contexto para pasar a la plantilla
-    context = {
-        'currencies': currency_cards, # Nueva lista dinámica de tarjetas
-        # Puedes agregar aquí otras métricas (órdenes, ventas, etc.)
-    }
+    return currency_cards
 
+
+def dashboard_view(request):
+    """
+    Vista principal para el Dashboard General de ERP México (Decorlata S.A. de C.V.).
+    Muestra los tipos de cambio oficiales más recientes y métricas globales.
+    """
+    context = {
+        'currencies': obtener_tarjetas_moneda(auto_sincronizar=True),
+    }
     return render(request, 'general/dashboard.html', context)
+
+
+@login_required
+def sincronizar_tipo_cambio_view(request):
+    """
+    Endpoint HTMX / POST para sincronizar tipos de cambio oficiales.
+    Actualiza la BD de forma automática (Banxico o canal DOF/BCE) y retorna
+    el fragmento de tarjetas actualizado sin recargar la página.
+    """
+    if request.method == 'POST':
+        try:
+            try:
+                resultado = sincronizar_tipos_cambio_banxico()
+                fuente = 'Banxico SIE'
+            except BanxicoAPIError:
+                resultado = sincronizar_tipos_cambio_automatico()
+                fuente = resultado.get('fuente', 'DOF / Banxico Oficial')
+
+            total = resultado.get('total', 0)
+            messages.success(
+                request,
+                f"¡Tipos de cambio oficiales actualizados! ({total} divisas sincronizadas vía {fuente})."
+            )
+        except Exception as e:
+            messages.error(request, f"Error durante la sincronización: {str(e)}")
+
+        currencies = obtener_tarjetas_moneda(auto_sincronizar=False)
+
+        if request.headers.get('HX-Request'):
+            return render(request, 'general/partials/_tarjetas_divisas.html', {
+                'currencies': currencies
+            })
+
+    return redirect('general:dashboard')

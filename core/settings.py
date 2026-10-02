@@ -137,3 +137,14 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Redirigir a los usuarios no autenticados al login del administrador
 LOGIN_URL = '/admin/login/'
+
+# ==============================================================================
+# CONFIGURACIÓN BANXICO SIE (SISTEMA DE INFORMACIÓN ECONÓMICA)
+# ==============================================================================
+# Token gratuito generado en: https://www.banxico.org.mx/SieAPIRest/service/v1/token
+BANXICO_TOKEN = os.environ.get('BANXICO_TOKEN', 'a80faf28e45f6fa83728bc8d626c7529473ac7826aef826343908a9f723d790e')
+BANXICO_API_BASE_URL = 'https://www.banxico.org.mx/SieAPIRest/service/v1/'
+BANXICO_SERIES = {
+    'USD': 'SF43718',  # Tipo de cambio FIX para solventar obligaciones (DOF / CFF Art. 20)
+    'EUR': 'SF46410',  # Cotización Euro frente al peso mexicano (Canasta DEG)
+}

@@ -13,6 +13,7 @@ from django.contrib import messages
 from .models import OrdenCompra_Maestro, OrdenCompra_Detalle, Proveedor
 from inventario.models import MovimientoInventario, Producto, Bodega
 from general.models import TipoCambio, Moneda
+from general.services import obtener_tipo_cambio_vigente, TipoCambioNoDisponibleError
 from decimal import Decimal
 from .forms import ProveedorForm
 from weasyprint import HTML
@@ -29,20 +30,14 @@ def procesar_recepcion_compra(orden_id, usuario):
         if orden.estado == 'RECIBIDA':
             raise ValueError("Esta Orden de Compra ya fue procesada anteriormente.")
 
-        # 1. Resolver el Tipo de Cambio (Asumiendo que Moneda tiene un código como 'MXN', 'USD')
-        tipo_cambio_val = Decimal('1.000000')
-        if orden.moneda.codigo != 'MXN':
-            # Buscar el tipo de cambio del día
-            tc_hoy = TipoCambio.objects.filter(
-                moneda_origen=orden.moneda,
-                fecha=timezone.now().date()
-            ).first()
-
-            if tc_hoy:
-                tipo_cambio_val = tc_hoy.valor
-            else:
-                # Aquí podrías lanzar un error exigiendo que capturen el TC del día
-                raise ValueError(f"Falta registrar el Tipo de Cambio para {orden.moneda.codigo} del día de hoy.")
+        # 1. Resolver el Tipo de Cambio oficial vigente (CFF Art. 20)
+        try:
+            tipo_cambio_val = obtener_tipo_cambio_vigente(
+                orden.moneda,
+                orden.fecha_emision.date() if orden.fecha_emision else timezone.now().date()
+            )
+        except TipoCambioNoDisponibleError as e:
+            raise ValueError(str(e))
 
         orden.tipo_cambio_aplicado = tipo_cambio_val
 
@@ -180,18 +175,14 @@ def recibir_orden_view(request, pk):
                 if orden.estado == 'RECIBIDA':
                     raise ValueError("Esta orden ya fue ingresada al almacén anteriormente.")
 
-                # 1. Resolver el Tipo de Cambio
-                tipo_cambio_val = Decimal('1.000000')
-                if orden.moneda.codigo != 'MXN':
-                    tc_hoy = TipoCambio.objects.filter(
-                        moneda_origen=orden.moneda,
-                        fecha=timezone.now().date()
-                    ).first()
-
-                    if tc_hoy:
-                        tipo_cambio_val = tc_hoy.valor
-                    else:
-                        raise ValueError(f"No hay un Tipo de Cambio registrado hoy para {orden.moneda.codigo}.")
+                # 1. Resolver el Tipo de Cambio oficial vigente (CFF Art. 20)
+                try:
+                    tipo_cambio_val = obtener_tipo_cambio_vigente(
+                        orden.moneda,
+                        orden.fecha_emision.date() if orden.fecha_emision else timezone.now().date()
+                    )
+                except TipoCambioNoDisponibleError as e:
+                    raise ValueError(str(e))
 
                 orden.tipo_cambio_aplicado = tipo_cambio_val
 
