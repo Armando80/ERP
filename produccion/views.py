@@ -7,12 +7,13 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.urls import reverse
 from weasyprint import HTML
 
 from inventario.models import Producto, Bodega, Stock
 from .models import (
     ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
-    EntregaParcialProduccion, EntregaParcial_Insumo
+    EntregaParcialProduccion, EntregaParcial_Insumo, EtapaProduccionOP
 )
 from .forms import (
     ListaMaterialesBOMForm, InsumoBOMForm, OrdenProduccionForm,
@@ -24,7 +25,11 @@ from .services import (
     finalizar_orden_produccion,
     cancelar_orden_produccion,
     notificar_entrega_parcial,
-    cerrar_orden_definitiva
+    cerrar_orden_definitiva,
+    inicializar_etapas_ensamble_op,
+    crear_orden_desde_pedido,
+    explosion_materiales_bom,
+    actualizar_avance_etapa_ensamble
 )
 
 
@@ -269,7 +274,7 @@ def previsualizar_bom_op_view(request):
 
 @login_required
 def detalle_orden_produccion_view(request, pk):
-    """Ficha técnica de la OP con insumos programados vs consumidos y trazabilidad."""
+    """Ficha técnica de la OP con insumos programados vs consumidos, explosión BOM y avance de ensamble."""
     orden = get_object_or_404(
         OrdenProduccion.objects.select_related(
             'producto_a_fabricar',
@@ -278,17 +283,37 @@ def detalle_orden_produccion_view(request, pk):
             'bodega_destino_pt',
             'usuario_creacion',
             'usuario_finalizacion',
-            'bom'
+            'bom',
+            'pedido_venta',
+            'pedido_venta__cliente',
+            'pedido_detalle'
         ).prefetch_related(
             'insumos_detalle__insumo',
-            'insumos_detalle__insumo__unidad_medida'
+            'insumos_detalle__insumo__unidad_medida',
+            'etapas_ensamble'
         ),
         pk=pk
     )
+
+    # Garantizar que las 6 etapas estén inicializadas
+    if not orden.etapas_ensamble.exists():
+        inicializar_etapas_ensamble_op(orden)
+
+    etapas = orden.etapas_ensamble.all()
+
+    # Explosión de materiales clasificada
+    explosion = explosion_materiales_bom(
+        orden.producto_a_fabricar,
+        orden.cantidad_a_producir,
+        orden.bodega_origen_insumos
+    )
+
     finalizar_form = FinalizarOrdenForm(initial={'cantidad_producida': orden.cantidad_a_producir})
 
     return render(request, 'produccion/orden_produccion_detalle.html', {
         'orden': orden,
+        'etapas': etapas,
+        'explosion': explosion,
         'finalizar_form': finalizar_form
     })
 
@@ -481,4 +506,132 @@ def cerrar_orden_definitiva_view(request, pk):
             messages.error(request, f"Error al cerrar la orden: {str(e)}")
 
     return redirect('produccion:gestionar_orden', pk=pk)
+
+
+# ==============================================================================
+# FASE 1: AVANCE DE LÍNEA DE ENSAMBLE Y CONEXIÓN CON PEDIDOS DE VENTA
+# ==============================================================================
+
+@login_required
+def actualizar_avance_etapa_view(request, pk):
+    """
+    Endpoint HTMX para registrar el avance de piezas y scrap en una estación de ensamble.
+    Devuelve el bloque interactivo actualizado del timeline de la línea.
+    """
+    etapa = get_object_or_404(EtapaProduccionOP.objects.select_related('orden'), pk=pk)
+    orden = etapa.orden
+
+    if request.method == 'POST':
+        cantidad_buena = request.POST.get('cantidad_buena')
+        cantidad_scrap = request.POST.get('cantidad_scrap')
+        nuevo_estado = request.POST.get('nuevo_estado')
+        operador = request.POST.get('operador')
+        notas = request.POST.get('notas')
+
+        try:
+            actualizar_avance_etapa_ensamble(
+                etapa_id=etapa.id,
+                cantidad_buena=cantidad_buena if cantidad_buena != '' and cantidad_buena is not None else None,
+                cantidad_scrap=cantidad_scrap if cantidad_scrap != '' and cantidad_scrap is not None else None,
+                nuevo_estado=nuevo_estado if nuevo_estado else None,
+                operador=operador if operador is not None else None,
+                notas=notas if notas is not None else None,
+                usuario=request.user
+            )
+            messages.success(request, f"Estación '{etapa.nombre_etapa}' actualizada correctamente.")
+        except Exception as e:
+            messages.error(request, f"Error al actualizar estación: {str(e)}")
+
+        if request.headers.get('HX-Request'):
+            etapas = orden.etapas_ensamble.all()
+            return render(request, 'produccion/partials/_etapas_linea_timeline.html', {
+                'orden': orden,
+                'etapas': etapas
+            })
+
+    return redirect('produccion:detalle_orden', pk=orden.id)
+
+
+@login_required
+def explosion_materiales_modal_view(request, producto_id):
+    """
+    Modal interactivo para consultar la explosión clasificada de un producto (Hojalata, MP, Componentes).
+    """
+    producto = get_object_or_404(Producto.objects.select_related('receta_bom', 'unidad_medida'), pk=producto_id)
+    cantidad = request.GET.get('cantidad', '1000')
+    bodega_id = request.GET.get('bodega_id') or request.GET.get('bodega_origen')
+
+    explosion = explosion_materiales_bom(producto, cantidad, bodega_id)
+    bodegas = Bodega.objects.all().order_by('nombre')
+
+    return render(request, 'produccion/partials/_modal_explosion_materiales.html', {
+        'producto': producto,
+        'explosion': explosion,
+        'bodegas': bodegas,
+        'bodega_seleccionada_id': int(bodega_id) if bodega_id and bodega_id.isdigit() else None
+    })
+
+
+@login_required
+def crear_op_desde_pedido_view(request, detalle_id):
+    """
+    Vista/Modal para lanzar una Orden de Producción ligada a una partida de Pedido de Venta en firme.
+    Permite verificar la explosión de materiales y stock antes de confirmar.
+    """
+    from ventas.models import PedidoVenta_Detalle
+
+    detalle = get_object_or_404(
+        PedidoVenta_Detalle.objects.select_related(
+            'pedido', 'pedido__cliente', 'pedido__bodega_despacho',
+            'producto', 'producto__unidad_medida', 'producto__receta_bom'
+        ),
+        pk=detalle_id
+    )
+
+    bodegas = Bodega.objects.all().order_by('nombre')
+    bodega_sugerida = Bodega.objects.filter(codigo__icontains='MP').first() or bodegas.first()
+
+    if request.method == 'POST':
+        cantidad = request.POST.get('cantidad', detalle.cantidad)
+        bodega_origen_id = request.POST.get('bodega_origen_insumos')
+        bodega_destino_id = request.POST.get('bodega_destino_pt', detalle.pedido.bodega_despacho_id)
+        fecha_compromiso = request.POST.get('fecha_compromiso') or detalle.pedido.fecha_compromiso
+        observaciones = request.POST.get('observaciones')
+
+        try:
+            orden = crear_orden_desde_pedido(
+                pedido_detalle=detalle,
+                usuario=request.user,
+                bodega_origen_id=bodega_origen_id,
+                bodega_destino_id=bodega_destino_id,
+                cantidad=cantidad,
+                fecha_compromiso=fecha_compromiso,
+                observaciones=observaciones
+            )
+            messages.success(request, f"¡Orden de Producción {orden.folio} generada exitosamente desde el Pedido {detalle.pedido.folio}!")
+
+            if request.headers.get('HX-Request'):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('produccion:detalle_orden', kwargs={'pk': orden.id})
+                return response
+
+            return redirect('produccion:detalle_orden', pk=orden.id)
+        except Exception as e:
+            messages.error(request, f"Error al generar Orden de Producción: {str(e)}")
+            if request.headers.get('HX-Request'):
+                return HttpResponse(f"<div class='alert alert-danger py-2 small'>{str(e)}</div>", status=400)
+
+    # GET: Explosión de materiales previa para revisión
+    explosion = explosion_materiales_bom(
+        detalle.producto,
+        detalle.cantidad,
+        bodega_sugerida
+    )
+
+    return render(request, 'produccion/partials/_modal_crear_op_pedido.html', {
+        'detalle': detalle,
+        'explosion': explosion,
+        'bodegas': bodegas,
+        'bodega_sugerida': bodega_sugerida
+    })
 

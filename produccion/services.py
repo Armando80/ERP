@@ -6,7 +6,7 @@ from general.models import Moneda
 from inventario.models import Producto, Bodega, Stock, MovimientoInventario
 from .models import (
     ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
-    EntregaParcialProduccion, EntregaParcial_Insumo
+    EntregaParcialProduccion, EntregaParcial_Insumo, EtapaProduccionOP
 )
 
 
@@ -128,11 +128,252 @@ def generar_folio_produccion():
     return f"{prefijo}{secuencia:04d}"
 
 
-def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_destino_id, usuario, fecha_compromiso=None, observaciones=None):
+def inicializar_etapas_ensamble_op(orden):
+    """
+    Inicializa las 6 estaciones secuenciales industriales en la línea de ensamble para la OP:
+    1. Cizallado Primario de Hojalata
+    2. Litografía y Barnizado
+    3. Corte de Plantillas (Cuerpos)
+    4. Formado y Soldadura Eléctrica
+    5. Línea de Ensamble y Engargolado
+    6. Prueba de Hermeticidad y Paletizado
+    """
+    if orden.etapas_ensamble.exists():
+        return list(orden.etapas_ensamble.all())
+
+    etapas = []
+    secuencia_config = [
+        (EtapaProduccionOP.CORTE_HOJA, '1. Cizallado Primario de Hojalata', 1),
+        (EtapaProduccionOP.LITOGRAFIA, '2. Litografía y Barnizado', 2),
+        (EtapaProduccionOP.CORTE_CUERPO, '3. Corte de Plantillas (Cuerpos)', 3),
+        (EtapaProduccionOP.SOLDADURA, '4. Formado y Soldadura Eléctrica', 4),
+        (EtapaProduccionOP.ENSAMBLE, '5. Línea de Ensamble y Engargolado', 5),
+        (EtapaProduccionOP.PRUEBA_EMPAQUE, '6. Prueba de Hermeticidad y Paletizado', 6),
+    ]
+
+    for codigo, nombre, sec in secuencia_config:
+        cant_in = orden.cantidad_a_producir if sec == 1 else Decimal('0.0000')
+        etapa = EtapaProduccionOP.objects.create(
+            orden=orden,
+            codigo_etapa=codigo,
+            nombre_etapa=nombre,
+            secuencia=sec,
+            estado=EtapaProduccionOP.ESTADO_PENDIENTE,
+            cantidad_entrada=cant_in,
+            cantidad_buena=Decimal('0.0000'),
+            cantidad_scrap=Decimal('0.0000')
+        )
+        etapas.append(etapa)
+
+    return etapas
+
+
+def actualizar_avance_etapa_ensamble(etapa_id, cantidad_buena=None, cantidad_scrap=None, nuevo_estado=None, operador=None, notas=None, usuario=None):
+    """
+    Actualiza el avance de producción en una estación de la línea de ensamble:
+    - Registra piezas conformes y scrap.
+    - Cambia estado (PENDIENTE, EN_PROCESO, COMPLETADA).
+    - Al completar una estación, transfiere automáticamente las piezas conformes a la siguiente estación.
+    - Si se completa la última estación (Hermeticidad y Paletizado), actualiza cantidad_producida de la OP.
+    """
+    with transaction.atomic():
+        etapa = EtapaProduccionOP.objects.select_for_update().get(id=etapa_id)
+        orden = etapa.orden
+
+        if cantidad_buena is not None:
+            cant_b = Decimal(str(cantidad_buena))
+            if cant_b < Decimal('0'):
+                raise ValueError("La cantidad buena no puede ser negativa.")
+            etapa.cantidad_buena = cant_b
+
+        if cantidad_scrap is not None:
+            cant_s = Decimal(str(cantidad_scrap))
+            if cant_s < Decimal('0'):
+                raise ValueError("La cantidad de scrap no puede ser negativa.")
+            etapa.cantidad_scrap = cant_s
+
+        if operador is not None:
+            etapa.operador = operador
+
+        if notas is not None:
+            etapa.notas = notas
+
+        if nuevo_estado:
+            if nuevo_estado not in [choice[0] for choice in EtapaProduccionOP.ESTADOS_CHOICES]:
+                raise ValueError(f"Estado de etapa inválido: {nuevo_estado}")
+            etapa.estado = nuevo_estado
+
+            if nuevo_estado == EtapaProduccionOP.ESTADO_EN_PROCESO and not etapa.fecha_inicio:
+                etapa.fecha_inicio = timezone.now()
+
+            elif nuevo_estado == EtapaProduccionOP.ESTADO_COMPLETADA:
+                if not etapa.fecha_inicio:
+                    etapa.fecha_inicio = timezone.now()
+                etapa.fecha_fin = timezone.now()
+
+                # Cascada automática de piezas conformes a la siguiente estación
+                etapa_siguiente = orden.etapas_ensamble.filter(secuencia=etapa.secuencia + 1).first()
+                if etapa_siguiente:
+                    etapa_siguiente.cantidad_entrada = etapa.cantidad_buena
+                    etapa_siguiente.save(update_fields=['cantidad_entrada'])
+                else:
+                    # Última estación en la línea
+                    orden.cantidad_producida = etapa.cantidad_buena
+                    orden.save(update_fields=['cantidad_producida'])
+
+        # Si la orden está PLANEADA y la estación pasa a EN_PROCESO o COMPLETADA, transicionar orden
+        if orden.estado == OrdenProduccion.PLANEADA and etapa.estado in [EtapaProduccionOP.ESTADO_EN_PROCESO, EtapaProduccionOP.ESTADO_COMPLETADA]:
+            orden.estado = OrdenProduccion.EN_PROCESO
+            orden.save(update_fields=['estado'])
+
+        etapa.save()
+        return etapa
+
+
+def explosion_materiales_bom(producto, cantidad, bodega_origen=None):
+    """
+    Realiza la explosión de materiales (BOM) clasificada para un producto y cantidad objetivo.
+    Desglosa y categoriza los insumos en las 3 familias industriales clave de Decorlata:
+    1. Hojalata (HR, HL, HC, CC)
+    2. Materia Prima química (MP - barnices, tintas, compuestos, soldadura)
+    3. Componentes metálicos (CP - conos, fondos, válvulas, tapas)
+    4. Otros
+    Calcula mermas esperadas, cantidades netas y brutas, costos MXN y valida existencias físicas/disponibles en bodega.
+    """
+    if isinstance(producto, (int, str)):
+        producto = Producto.objects.select_related('receta_bom', 'unidad_medida').get(id=producto)
+
+    if isinstance(bodega_origen, (int, str)):
+        bodega_origen = Bodega.objects.filter(id=bodega_origen).first()
+
+    cant_dec = Decimal(str(cantidad))
+    bom = getattr(producto, 'receta_bom', None)
+    if not bom or not bom.activo:
+        return {
+            'producto': producto,
+            'cantidad': cant_dec,
+            'bom': None,
+            'tiene_bom': False,
+            'hojalata': [],
+            'materia_prima': [],
+            'componentes': [],
+            'otros': [],
+            'todos_insumos': [],
+            'totales': {
+                'costo_total_mxn': Decimal('0.000000'),
+                'costo_unitario_mxn': Decimal('0.000000'),
+                'todos_disponibles': False,
+                'total_items': 0,
+                'items_faltantes': 0,
+            }
+        }
+
+    factor = cant_dec / bom.cantidad_base if bom.cantidad_base > Decimal('0') else Decimal('1.00')
+
+    hojalata_lista = []
+    materia_prima_lista = []
+    componentes_lista = []
+    otros_lista = []
+    todos_insumos = []
+
+    costo_total_mxn = Decimal('0.000000')
+    todos_disponibles = True
+    items_faltantes = 0
+
+    insumos_qs = bom.insumos.select_related(
+        'materia_prima', 'materia_prima__unidad_medida', 'materia_prima__moneda_base_costo'
+    ).order_by('materia_prima__tipo', 'materia_prima__sku')
+
+    for insumo_receta in insumos_qs:
+        mp = insumo_receta.materia_prima
+        cant_neta = round(insumo_receta.cantidad_requerida * factor, 6)
+        cant_con_merma = round(insumo_receta.cantidad_con_merma * factor, 6)
+        merma_piezas = round(cant_con_merma - cant_neta, 6)
+
+        costo_unit = insumo_receta.costo_unitario_efectivo_mxn
+        costo_linea = round(cant_con_merma * costo_unit, 6)
+        costo_total_mxn += costo_linea
+
+        stock_fisico = Decimal('0.000000')
+        stock_reservado = Decimal('0.000000')
+        stock_disponible = Decimal('0.000000')
+
+        if bodega_origen:
+            st = Stock.objects.filter(producto=mp, bodega=bodega_origen).first()
+            if st:
+                stock_fisico = st.cantidad
+                stock_reservado = st.cantidad_reservada
+                stock_disponible = st.cantidad_disponible
+
+        suficiente = stock_disponible >= cant_con_merma if bodega_origen else True
+        faltante = max(Decimal('0.000000'), cant_con_merma - stock_disponible) if bodega_origen else Decimal('0.000000')
+
+        if not suficiente:
+            todos_disponibles = False
+            items_faltantes += 1
+
+        item_dict = {
+            'insumo_bom': insumo_receta,
+            'producto': mp,
+            'sku': mp.sku,
+            'nombre': mp.nombre,
+            'tipo': mp.tipo,
+            'tipo_display': mp.get_tipo_display(),
+            'unidad_medida': mp.unidad_medida.codigo,
+            'cantidad_base': insumo_receta.cantidad_requerida,
+            'porcentaje_merma': insumo_receta.porcentaje_merma,
+            'cantidad_neta': cant_neta,
+            'merma_piezas': merma_piezas,
+            'cantidad_requerida': cant_con_merma,
+            'costo_unitario_mxn': costo_unit,
+            'costo_linea_mxn': costo_linea,
+            'stock_fisico': stock_fisico,
+            'stock_reservado': stock_reservado,
+            'stock_disponible': stock_disponible,
+            'faltante': faltante,
+            'suficiente': suficiente,
+        }
+
+        todos_insumos.append(item_dict)
+
+        # Categorización Decorlata
+        if mp.tipo in [Producto.HOJALATA_ROLLO, Producto.HOJA_LITOGRAFIADA, Producto.HOJA_CORTADA, Producto.PLANTILLA]:
+            hojalata_lista.append(item_dict)
+        elif mp.tipo == Producto.MATERIA_PRIMA:
+            materia_prima_lista.append(item_dict)
+        elif mp.tipo == Producto.COMPONENTE:
+            componentes_lista.append(item_dict)
+        else:
+            otros_lista.append(item_dict)
+
+    costo_unitario_mxn = round(costo_total_mxn / cant_dec, 6) if cant_dec > Decimal('0') else Decimal('0.000000')
+
+    return {
+        'producto': producto,
+        'cantidad': cant_dec,
+        'bom': bom,
+        'tiene_bom': True,
+        'hojalata': hojalata_lista,
+        'materia_prima': materia_prima_lista,
+        'componentes': componentes_lista,
+        'otros': otros_lista,
+        'todos_insumos': todos_insumos,
+        'totales': {
+            'costo_total_mxn': costo_total_mxn,
+            'costo_unitario_mxn': costo_unitario_mxn,
+            'todos_disponibles': todos_disponibles,
+            'total_items': len(todos_insumos),
+            'items_faltantes': items_faltantes,
+        }
+    }
+
+
+def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_destino_id, usuario, fecha_compromiso=None, observaciones=None, pedido_venta=None, pedido_detalle=None):
     """
     Crea una nueva Orden de Producción en estado PLANEADA.
     Si el producto cuenta con una receta (BOM) activa, congela los insumos requeridos
     escalados a la cantidad a fabricar en OrdenProduccion_Insumo.
+    Inicializa automáticamente las 6 etapas secuenciales en la línea de ensamble.
     """
     with transaction.atomic():
         producto = Producto.objects.select_related('receta_bom').get(id=producto_id)
@@ -151,6 +392,8 @@ def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_desti
             cantidad_a_producir=cantidad_decimal,
             bodega_origen_insumos=bodega_origen,
             bodega_destino_pt=bodega_destino,
+            pedido_venta=pedido_venta,
+            pedido_detalle=pedido_detalle,
             fecha_compromiso=fecha_compromiso,
             observaciones=observaciones,
             usuario_creacion=usuario,
@@ -173,6 +416,65 @@ def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_desti
                     costo_unitario_mxn=costo_unit,
                     costo_total_mxn=costo_tot
                 )
+
+        # Inicializar estaciones de ensamble industrial
+        inicializar_etapas_ensamble_op(orden)
+
+        return orden
+
+
+def crear_orden_desde_pedido(pedido_detalle, usuario, bodega_origen_id=None, bodega_destino_id=None, cantidad=None, fecha_compromiso=None, observaciones=None):
+    """
+    Genera una Orden de Producción (OP) ligada a una partida específica de un Pedido de Venta en firme.
+    Mantiene la trazabilidad bidireccional entre el pedido comercial y la OP.
+    """
+    from ventas.models import PedidoVenta_Detalle, PedidoVenta_Maestro
+
+    with transaction.atomic():
+        if isinstance(pedido_detalle, (int, str)):
+            detalle = PedidoVenta_Detalle.objects.select_related('pedido', 'producto').get(id=pedido_detalle)
+        else:
+            detalle = pedido_detalle
+
+        pedido = detalle.pedido
+
+        if pedido.tipo_documento != PedidoVenta_Maestro.PEDIDO:
+            raise ValueError("Solo se pueden generar órdenes de producción para Pedidos de Venta en Firme.")
+
+        if pedido.estado == PedidoVenta_Maestro.CANCELADO:
+            raise ValueError("No se puede generar una orden de producción para un pedido cancelado.")
+
+        # Cantidad por producir
+        cant_producir = Decimal(str(cantidad)) if cantidad is not None else detalle.cantidad
+        if cant_producir <= Decimal('0'):
+            raise ValueError("La cantidad a producir debe ser mayor a cero.")
+
+        # Bodega destino por defecto: la bodega de despacho del pedido
+        if not bodega_destino_id:
+            bodega_destino = pedido.bodega_despacho
+        else:
+            bodega_destino = Bodega.objects.get(id=bodega_destino_id) if not isinstance(bodega_destino_id, Bodega) else bodega_destino_id
+
+        # Bodega origen por defecto: bodega de materia prima o primera disponible
+        if not bodega_origen_id:
+            bodega_origen = Bodega.objects.filter(codigo__icontains='MP').first() or Bodega.objects.exclude(id=bodega_destino.id).first() or bodega_destino
+        else:
+            bodega_origen = Bodega.objects.get(id=bodega_origen_id) if not isinstance(bodega_origen_id, Bodega) else bodega_origen_id
+
+        fecha_comp = fecha_compromiso or pedido.fecha_compromiso
+        obs = observaciones or f"Orden generada desde Pedido {pedido.folio} (Partida #{detalle.id} - {detalle.producto.sku})"
+
+        orden = crear_orden_produccion(
+            producto_id=detalle.producto.id,
+            cantidad=cant_producir,
+            bodega_origen_id=bodega_origen.id,
+            bodega_destino_id=bodega_destino.id,
+            usuario=usuario,
+            fecha_compromiso=fecha_comp,
+            observaciones=obs,
+            pedido_venta=pedido,
+            pedido_detalle=detalle
+        )
 
         return orden
 

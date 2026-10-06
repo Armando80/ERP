@@ -26,6 +26,9 @@ urlpatterns = [
     path('ordenes/<int:pk>/cerrar-definitiva/', views.cerrar_orden_definitiva_view, name='cerrar_orden_definitiva'),
 
 
-    # Endpoints dinámicos HTMX
+    # Endpoints dinámicos HTMX y Control de Avance
     path('api/previsualizar-bom/', views.previsualizar_bom_op_view, name='previsualizar_bom'),
+    path('api/explosion-materiales/<int:producto_id>/', views.explosion_materiales_modal_view, name='explosion_materiales_modal'),
+    path('etapas/<int:pk>/actualizar/', views.actualizar_avance_etapa_view, name='actualizar_etapa_avance'),
+    path('desde-pedido/<int:detalle_id>/', views.crear_op_desde_pedido_view, name='crear_op_desde_pedido'),
 ]

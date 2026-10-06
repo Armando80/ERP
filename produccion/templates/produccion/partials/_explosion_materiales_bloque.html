@@ -1,0 +1,271 @@
+<!-- ERP Decorlata - produccion/partials/_explosion_materiales_bloque.html -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold text-dark mb-0">
+                <i class="bi bi-layers-half text-primary me-2"></i>Explosión de Materiales (BOM Industrial)
+            </h5>
+            <small class="text-muted">Desglose multinivel agrupado en las 3 familias industriales clave de Decorlata.</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if explosion.totales.todos_disponibles %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success px-2 py-1">
+                    <i class="bi bi-check-circle me-1"></i>Stock Disponible 100% Completo
+                </span>
+            {% else %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>{{ explosion.totales.items_faltantes }} Insumo(s) con Faltante en Almacén
+                </span>
+            {% endif %}
+            <span class="badge bg-light text-dark border px-2 py-1">
+                Total Insumos: {{ explosion.totales.total_items }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Indicadores de Costo Teórico de Explosión -->
+    <div class="card-body border-bottom bg-light bg-opacity-50 py-3">
+        <div class="row g-3 small">
+            <div class="col-md-3">
+                <span class="text-muted d-block">Cantidad a Fabricar:</span>
+                <strong class="text-dark fs-6 font-monospace">{{ explosion.cantidad|floatformat:2 }} {{ explosion.producto.unidad_medida.codigo }}</strong>
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted d-block">Fórmula / BOM Base:</span>
+                <strong class="text-dark">{{ explosion.bom.cantidad_base|floatformat:0 }} {{ explosion.producto.unidad_medida.codigo }}</strong>
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted d-block">Costo Total Estimado Insumos:</span>
+                <strong class="text-dark fs-6 font-monospace">${{ explosion.totales.costo_total_mxn|floatformat:4 }} MXN</strong>
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted d-block">Costo Estimado Unitario (pza):</span>
+                <strong class="text-success fs-6 font-monospace">${{ explosion.totales.costo_unitario_mxn|floatformat:4 }} MXN</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        <!-- Acordeón o Grupos por Familia -->
+
+        <!-- 1. FAMILIA HOJALATA -->
+        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark">
+                <i class="bi bi-file-earmark-ruled me-1 text-primary"></i>1. Familia Hojalata (Rollos, Hojas Cortadas y Plantillas)
+            </span>
+            <span class="badge bg-primary bg-opacity-10 text-primary">{{ explosion.hojalata|length }} ítems</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 30%;">Insumo / Especificación</th>
+                        <th class="text-center" style="width: 14%;">Requerido (c/ Merma)</th>
+                        <th class="text-center" style="width: 12%;">% Merma</th>
+                        <th class="text-center" style="width: 16%;">Stock Disponible</th>
+                        <th class="text-end" style="width: 13%;">Costo Unit. MXN</th>
+                        <th class="text-end pe-4" style="width: 15%;">Subtotal MXN</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for item in explosion.hojalata %}
+                    <tr>
+                        <td class="ps-4">
+                            <span class="fw-bold text-dark d-block">{{ item.nombre }}</span>
+                            <span class="badge bg-light text-secondary border font-monospace">{{ item.sku }}</span>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">{{ item.tipo_display }}</span>
+                        </td>
+                        <td class="text-center font-monospace fw-bold text-dark">
+                            {{ item.cantidad_requerida|floatformat:4 }} <small class="text-muted">{{ item.unidad_medida }}</small>
+                        </td>
+                        <td class="text-center font-monospace">
+                            {{ item.porcentaje_merma|floatformat:2 }}%
+                        </td>
+                        <td class="text-center font-monospace">
+                            {% if item.suficiente %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                    <i class="bi bi-check me-1"></i>{{ item.stock_disponible|floatformat:2 }} {{ item.unidad_medida }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Faltan {{ item.faltante|floatformat:2 }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace text-muted">
+                            ${{ item.costo_unitario_mxn|floatformat:4 }}
+                        </td>
+                        <td class="text-end pe-4 font-monospace fw-bold text-dark">
+                            ${{ item.costo_linea_mxn|floatformat:4 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-2 text-muted fst-italic">No requiere insumos de la familia hojalata.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 2. FAMILIA MATERIA PRIMA QUÍMICA -->
+        <div class="p-3 bg-light border-top border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark">
+                <i class="bi bi-droplet-half me-1 text-warning"></i>2. Familia Materia Prima Química (Barniz, Tintas, Soldadura, Compuestos)
+            </span>
+            <span class="badge bg-warning bg-opacity-25 text-dark">{{ explosion.materia_prima|length }} ítems</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 30%;">Insumo / Especificación</th>
+                        <th class="text-center" style="width: 14%;">Requerido (c/ Merma)</th>
+                        <th class="text-center" style="width: 12%;">% Merma</th>
+                        <th class="text-center" style="width: 16%;">Stock Disponible</th>
+                        <th class="text-end" style="width: 13%;">Costo Unit. MXN</th>
+                        <th class="text-end pe-4" style="width: 15%;">Subtotal MXN</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for item in explosion.materia_prima %}
+                    <tr>
+                        <td class="ps-4">
+                            <span class="fw-bold text-dark d-block">{{ item.nombre }}</span>
+                            <span class="badge bg-light text-secondary border font-monospace">{{ item.sku }}</span>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">{{ item.tipo_display }}</span>
+                        </td>
+                        <td class="text-center font-monospace fw-bold text-dark">
+                            {{ item.cantidad_requerida|floatformat:4 }} <small class="text-muted">{{ item.unidad_medida }}</small>
+                        </td>
+                        <td class="text-center font-monospace">
+                            {{ item.porcentaje_merma|floatformat:2 }}%
+                        </td>
+                        <td class="text-center font-monospace">
+                            {% if item.suficiente %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                    <i class="bi bi-check me-1"></i>{{ item.stock_disponible|floatformat:2 }} {{ item.unidad_medida }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Faltan {{ item.faltante|floatformat:2 }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace text-muted">
+                            ${{ item.costo_unitario_mxn|floatformat:4 }}
+                        </td>
+                        <td class="text-end pe-4 font-monospace fw-bold text-dark">
+                            ${{ item.costo_linea_mxn|floatformat:4 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-2 text-muted fst-italic">No requiere materias primas químicas.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 3. FAMILIA COMPONENTES METÁLICOS -->
+        <div class="p-3 bg-light border-top border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark">
+                <i class="bi bi-disc me-1 text-success"></i>3. Familia Componentes Metálicos (Conos, Fondos, Válvulas, Tapas)
+            </span>
+            <span class="badge bg-success bg-opacity-25 text-success">{{ explosion.componentes|length }} ítems</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 30%;">Insumo / Especificación</th>
+                        <th class="text-center" style="width: 14%;">Requerido (c/ Merma)</th>
+                        <th class="text-center" style="width: 12%;">% Merma</th>
+                        <th class="text-center" style="width: 16%;">Stock Disponible</th>
+                        <th class="text-end" style="width: 13%;">Costo Unit. MXN</th>
+                        <th class="text-end pe-4" style="width: 15%;">Subtotal MXN</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for item in explosion.componentes %}
+                    <tr>
+                        <td class="ps-4">
+                            <span class="fw-bold text-dark d-block">{{ item.nombre }}</span>
+                            <span class="badge bg-light text-secondary border font-monospace">{{ item.sku }}</span>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">{{ item.tipo_display }}</span>
+                        </td>
+                        <td class="text-center font-monospace fw-bold text-dark">
+                            {{ item.cantidad_requerida|floatformat:4 }} <small class="text-muted">{{ item.unidad_medida }}</small>
+                        </td>
+                        <td class="text-center font-monospace">
+                            {{ item.porcentaje_merma|floatformat:2 }}%
+                        </td>
+                        <td class="text-center font-monospace">
+                            {% if item.suficiente %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                    <i class="bi bi-check me-1"></i>{{ item.stock_disponible|floatformat:2 }} {{ item.unidad_medida }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Faltan {{ item.faltante|floatformat:2 }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace text-muted">
+                            ${{ item.costo_unitario_mxn|floatformat:4 }}
+                        </td>
+                        <td class="text-end pe-4 font-monospace fw-bold text-dark">
+                            ${{ item.costo_linea_mxn|floatformat:4 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-2 text-muted fst-italic">No requiere componentes metálicos.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 4. OTROS INSUMOS (SI APLICA) -->
+        {% if explosion.otros %}
+        <div class="p-3 bg-light border-top border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark"><i class="bi bi-box me-1 text-secondary"></i>4. Otros Insumos y Materiales</span>
+            <span class="badge bg-secondary">{{ explosion.otros|length }} ítems</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Insumo</th>
+                        <th class="text-center">Requerido</th>
+                        <th class="text-center">% Merma</th>
+                        <th class="text-center">Stock Disponible</th>
+                        <th class="text-end">Costo Unit. MXN</th>
+                        <th class="text-end pe-4">Subtotal MXN</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for item in explosion.otros %}
+                    <tr>
+                        <td class="ps-4">{{ item.nombre }} ({{ item.sku }})</td>
+                        <td class="text-center font-monospace">{{ item.cantidad_requerida|floatformat:4 }} {{ item.unidad_medida }}</td>
+                        <td class="text-center">{{ item.porcentaje_merma|floatformat:2 }}%</td>
+                        <td class="text-center">
+                            {% if item.suficiente %}
+                                <span class="badge bg-success">OK</span>
+                            {% else %}
+                                <span class="badge bg-danger">Faltante</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace">${{ item.costo_unitario_mxn|floatformat:4 }}</td>
+                        <td class="text-end pe-4 font-monospace fw-bold">${{ item.costo_linea_mxn|floatformat:4 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>

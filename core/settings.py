@@ -138,6 +138,10 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 # Redirigir a los usuarios no autenticados al login del administrador
 LOGIN_URL = '/admin/login/'
 
+# Media files (Archivos XML y PDF generados)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # ==============================================================================
 # CONFIGURACIÓN BANXICO SIE (SISTEMA DE INFORMACIÓN ECONÓMICA)
 # ==============================================================================
@@ -148,3 +152,18 @@ BANXICO_SERIES = {
     'USD': 'SF43718',  # Tipo de cambio FIX para solventar obligaciones (DOF / CFF Art. 20)
     'EUR': 'SF46410',  # Cotización Euro frente al peso mexicano (Canasta DEG)
 }
+
+# ==============================================================================
+# CONFIGURACIÓN FISCAL SAT CFDI 4.0 - DECORLATA S.A. DE C.V.
+# ==============================================================================
+CFDI_EMISOR_RFC = os.environ.get('CFDI_EMISOR_RFC', 'DEC150115B42')
+CFDI_EMISOR_NOMBRE = os.environ.get('CFDI_EMISOR_NOMBRE', 'DECORLATA S.A. DE C.V.')
+CFDI_EMISOR_REGIMEN = os.environ.get('CFDI_EMISOR_REGIMEN', '601')
+CFDI_LUGAR_EXPEDICION = os.environ.get('CFDI_LUGAR_EXPEDICION', '56255')
+CFDI_DOMICILIO_PLANTA = (
+    'GRAL. MARIANO RUIZ No.121, SANTIAGO CUAUTLALPAN, Texcoco Edo. Mex. C.P. 56255'
+)
+CFDI_NO_CERTIFICADO_EMISOR = os.environ.get('CFDI_NO_CERTIFICADO_EMISOR', '00001000000502019816')
+CFDI_NO_CERTIFICADO_SAT = os.environ.get('CFDI_NO_CERTIFICADO_SAT', '00001000000504204441')
+CFDI_PAC_RFC_PROV = os.environ.get('CFDI_PAC_RFC_PROV', 'TSP080724QW6')
+

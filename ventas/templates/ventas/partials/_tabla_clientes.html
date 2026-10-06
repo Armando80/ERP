@@ -1,0 +1,118 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle bg-white shadow-sm rounded mb-0">
+        <thead class="table-light small text-uppercase text-muted">
+            <tr>
+                <th>RFC y Razón Social</th>
+                <th>Datos Fiscales (SAT)</th>
+                <th>Contacto</th>
+                <th>Crédito</th>
+                <th class="text-center">Estado</th>
+                <th class="text-end pe-3">Acciones</th>
+            </tr>
+        </thead>
+        <tbody class="small text-secondary">
+            {% for cli in clientes %}
+            <tr class="{% if not cli.activo %}table-light opacity-75{% endif %}">
+                <td>
+                    <div class="fw-bold text-dark font-monospace">{{ cli.rfc }}</div>
+                    <div class="fw-semibold text-primary">{{ cli.razon_social }}</div>
+                    {% if cli.nombre_comercial %}
+                        <small class="text-muted"><i class="bi bi-tag me-1"></i>{{ cli.nombre_comercial }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge bg-light text-dark border font-monospace">CP: {{ cli.codigo_postal }}</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" title="Régimen Fiscal SAT">
+                        Rég: {{ cli.regimen_fiscal }}
+                    </span>
+                    <small class="text-muted d-block mt-1">Uso CFDI: {{ cli.uso_cfdi }}</small>
+                </td>
+                <td>
+                    {% if cli.correo %}
+                        <div class="text-dark"><i class="bi bi-envelope me-1 text-muted"></i>{{ cli.correo }}</div>
+                    {% endif %}
+                    {% if cli.telefono %}
+                        <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ cli.telefono }}</small>
+                    {% endif %}
+                    {% if not cli.correo and not cli.telefono %}
+                        <span class="text-muted small">- Sin contacto -</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if cli.dias_credito > 0 %}
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25">
+                            {{ cli.dias_credito }} días
+                        </span>
+                        {% if cli.limite_credito > 0 %}
+                            <small class="text-muted d-block font-monospace mt-1">
+                                Límite: ${{ cli.limite_credito|floatformat:2 }}
+                            </small>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                            Contado
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if cli.activo %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                            <i class="bi bi-check-circle me-1"></i>Activo
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                            <i class="bi bi-dash-circle me-1"></i>Inactivo
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="text-end pe-3">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <!-- Botón Ver Expediente / Detalle -->
+                        <button class="btn btn-outline-secondary shadow-sm"
+                                hx-get="{% url 'ventas:cliente_detalle_modal' cli.id %}"
+                                hx-target="#modal-cliente-content"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modalClienteDetalle"
+                                title="Ver Ficha Fiscal y Comercial">
+                            <i class="bi bi-eye"></i>
+                        </button>
+
+                        <!-- Botón Editar en Offcanvas -->
+                        <button class="btn btn-outline-primary shadow-sm"
+                                hx-get="{% url 'ventas:cliente_editar' cli.id %}"
+                                hx-target="#offcanvas-cliente-content"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasCliente"
+                                title="Editar Cliente">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+
+                        <!-- Botón Cambiar Estado Activo / Inactivo -->
+                        <form method="post" class="d-inline"
+                              hx-post="{% url 'ventas:cliente_toggle_activo' cli.id %}"
+                              hx-confirm="¿Estás seguro de {% if cli.activo %}desactivar{% else %}activar{% endif %} al cliente {{ cli.razon_social }}?">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn {% if cli.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %} shadow-sm"
+                                    title="{% if cli.activo %}Desactivar Cliente{% else %}Activar Cliente{% endif %}">
+                                <i class="bi {% if cli.activo %}bi-slash-circle{% else %}bi-arrow-repeat{% endif %}"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center py-5 text-muted">
+                    <i class="bi bi-person-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                    {% if query %}
+                        No se encontraron clientes que coincidan con la búsqueda "<strong>{{ query }}</strong>".
+                    {% else %}
+                        No hay clientes registrados en el catálogo de Ventas.
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

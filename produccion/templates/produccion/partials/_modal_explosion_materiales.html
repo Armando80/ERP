@@ -1,0 +1,45 @@
+<!-- ERP Decorlata - produccion/partials/_modal_explosion_materiales.html -->
+<div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">
+                <i class="bi bi-diagram-3 me-2"></i>Explosión de Materiales BOM: {{ producto.sku }}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+            <!-- Formulario de filtro de bodega y cantidad -->
+            <form method="GET" class="row g-3 mb-4 bg-light p-3 rounded border align-items-end"
+                  hx-get="{% url 'produccion:explosion_materiales_modal' producto.id %}"
+                  hx-target="#modal-general-container">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Producto a Evaluar:</label>
+                    <div class="fw-bold text-dark">{{ producto.nombre }}</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Cantidad Objetivo:</label>
+                    <input type="number" step="0.0001" min="0.0001" name="cantidad" value="{{ explosion.cantidad }}" class="form-control form-control-sm font-monospace" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Bodega de Insumos:</label>
+                    <select name="bodega_origen" class="form-select form-select-sm">
+                        <option value="">-- Sin filtrar bodega --</option>
+                        {% for b in bodegas %}
+                            <option value="{{ b.id }}" {% if bodega_seleccionada_id == b.id %}selected{% endif %}>{{ b.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-primary w-100 fw-semibold">
+                        <i class="bi bi-arrow-repeat me-1"></i>Recalcular
+                    </button>
+                </div>
+            </form>
+
+            {% include 'produccion/partials/_explosion_materiales_bloque.html' %}
+        </div>
+        <div class="modal-footer border-top bg-light">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+    </div>
+</div>

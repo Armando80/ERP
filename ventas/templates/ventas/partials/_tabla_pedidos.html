@@ -1,0 +1,129 @@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Folio / Tipo</th>
+                        <th>Cliente</th>
+                        <th>Emisión / Entrega</th>
+                        <th>Almacén</th>
+                        <th>Estado</th>
+                        <th class="text-end">Importe Total</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary small">
+                    {% for ped in pedidos %}
+                    <tr class="{% if ped.estado == 'CANCELADO' %}table-light opacity-50{% endif %}">
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center gap-2">
+                                {% if ped.tipo_documento == 'COT' %}
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 font-monospace">COT</span>
+                                {% else %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace">PED</span>
+                                {% endif %}
+                                <a href="{% url 'ventas:pedido_detalle' ped.id %}" class="fw-bold text-dark text-decoration-none">
+                                    {{ ped.folio }}
+                                </a>
+                            </div>
+                            {% if ped.referencia_cliente %}
+                                <small class="text-muted font-monospace d-block" style="font-size: 0.75rem;">Ref: {{ ped.referencia_cliente }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ ped.cliente.razon_social }}</div>
+                            <small class="text-muted font-monospace">{{ ped.cliente.rfc }}</small>
+                        </td>
+                        <td>
+                            <div class="text-dark">{{ ped.fecha_emision|date:"d M Y" }}</div>
+                            {% if ped.fecha_compromiso %}
+                                <small class="text-muted"><i class="bi bi-clock-history me-1"></i>Entrega: {{ ped.fecha_compromiso|date:"d/M/Y" }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ ped.bodega_despacho.nombre }}</span>
+                        </td>
+                        <td>
+                            {% if ped.estado == 'BORRADOR' %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-pencil me-1"></i>Borrador
+                                </span>
+                            {% elif ped.estado == 'COTIZADO' %}
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-send me-1"></i>Cotizada
+                                </span>
+                            {% elif ped.estado == 'CONFIRMADO' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-check2-circle me-1"></i>En Firme
+                                </span>
+                            {% elif ped.estado == 'SURTIDO' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-box-seam me-1"></i>Surtido
+                                </span>
+                            {% elif ped.estado == 'FACTURADO' %}
+                                <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-receipt me-1"></i>Facturado
+                                </span>
+                            {% elif ped.estado == 'CANCELADO' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-x-circle me-1"></i>Cancelado
+                                </span>
+                            {% endif %}
+
+                            {% if ped.stock_reservado %}
+                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 py-1 mt-1 d-block" style="font-size: 0.68rem;" title="Existencias apartadas formalmente en bodega">
+                                    <i class="bi bi-lock-fill me-1 text-warning"></i>Stock Apartado
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="fw-bold text-dark font-monospace">
+                                {{ ped.moneda.simbolo }}{{ ped.total|floatformat:2 }} <small class="text-muted">{{ ped.moneda.codigo }}</small>
+                            </div>
+                            {% if ped.moneda.codigo != 'MXN' %}
+                                <small class="text-muted font-monospace d-block" style="font-size: 0.73rem;">
+                                    ≈ ${{ ped.total_mxn|floatformat:2 }} MXN (@ {{ ped.tipo_cambio_aplicado|floatformat:4 }})
+                                </small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if ped.estado == 'SURTIDO' %}
+                                <a href="{% url 'ventas:pedido_detalle' ped.id %}" class="btn btn-sm btn-outline-success shadow-sm me-1" title="Facturar Pedido Surtido">
+                                    <i class="bi bi-receipt"></i>
+                                </a>
+                            {% elif ped.estado == 'FACTURADO' %}
+                                {% with fac=ped.facturas.first %}
+                                    {% if fac %}
+                                        <a href="{% url 'ventas:factura_detalle' fac.id %}" class="btn btn-sm btn-outline-dark shadow-sm me-1" title="Ver Factura {{ fac.folio_completo }}">
+                                            <i class="bi bi-receipt-cutoff"></i>
+                                        </a>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endif %}
+                            <a href="{% url 'ventas:pedido_pdf' ped.id %}" target="_blank" class="btn btn-sm btn-light text-danger border shadow-sm me-1" title="Descargar PDF Oficial">
+                                <i class="bi bi-file-earmark-pdf-fill"></i>
+                            </a>
+                            <a href="{% url 'ventas:pedido_detalle' ped.id %}" class="btn btn-sm btn-outline-primary shadow-sm" title="Ver Expediente de Venta">
+                                <i class="bi bi-eye-fill me-1"></i>Ver
+                            </a>
+                        </td>
+
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            {% if query %}
+                                No se encontraron cotizaciones ni pedidos que coincidan con la búsqueda "<strong>{{ query }}</strong>".
+                            {% else %}
+                                No hay cotizaciones ni pedidos de venta registrados en el sistema.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

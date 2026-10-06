@@ -8,7 +8,7 @@ from general.models import Moneda, TipoCambio
 from inventario.models import UnidadMedida, Bodega, Producto, Stock, MovimientoInventario
 from .models import (
     ListaMaterialesBOM, InsumoBOM, OrdenProduccion, OrdenProduccion_Insumo,
-    EntregaParcialProduccion, EntregaParcial_Insumo
+    EntregaParcialProduccion, EntregaParcial_Insumo, EtapaProduccionOP
 )
 from .services import (
     crear_orden_produccion,
@@ -18,8 +18,13 @@ from .services import (
     notificar_entrega_parcial,
     autorizar_entrega_parcial,
     rechazar_entrega_parcial,
-    cerrar_orden_definitiva
+    cerrar_orden_definitiva,
+    inicializar_etapas_ensamble_op,
+    crear_orden_desde_pedido,
+    explosion_materiales_bom,
+    actualizar_avance_etapa_ensamble
 )
+from ventas.models import Cliente, PedidoVenta_Maestro, PedidoVenta_Detalle
 
 
 class ProduccionModuloTestCase(TestCase):
@@ -695,3 +700,324 @@ class CosteoMultidivisaBOMTestCase(TestCase):
         self.assertEqual(insumo_bote.costo_unitario_efectivo_mxn, Decimal('6.000000'))
         self.assertEqual(insumo_bote.costo_info['origen'], 'SUB_BOM')
         self.assertEqual(bom_bote.costo_estimado_unitario_mxn, Decimal('6.000000'))
+
+
+class ProduccionFase1TestCase(TestCase):
+    """
+    Pruebas unitarias e integrales para la Fase 1 del Módulo de Producción:
+    1. Órdenes de Producción ligadas a Pedidos de Venta en firme.
+    2. Explosión de materiales clasificada (Hojalata, MP química, Componentes).
+    3. Inicialización y control de avance en líneas de ensamble (6 estaciones industriales).
+    4. Vistas y endpoints HTMX.
+    """
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='jefe_planta', password='password123')
+        self.client.login(username='jefe_planta', password='password123')
+
+        self.moneda_mxn = Moneda.objects.create(codigo='MXN', nombre='Peso Mexicano', simbolo='$')
+        self.u_pza = UnidadMedida.objects.create(codigo='PZA', nombre='Pieza')
+        self.u_kg = UnidadMedida.objects.create(codigo='KG', nombre='Kilogramo')
+        self.u_lt = UnidadMedida.objects.create(codigo='LTS', nombre='Litro')
+
+        self.bodega_mp = Bodega.objects.create(codigo='BOD-MP-01', nombre='Almacén Materia Prima y Componentes')
+        self.bodega_pt = Bodega.objects.create(codigo='BOD-PT-01', nombre='Almacén Producto Terminado')
+
+        # Familia 1: Hojalata
+        self.hojalata = Producto.objects.create(
+            sku='HR-BOB-01',
+            nombre='Bobina Hojalata T4 0.22mm',
+            tipo=Producto.HOJALATA_ROLLO,
+            unidad_medida=self.u_kg,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('30.000000')
+        )
+        self.plantilla = Producto.objects.create(
+            sku='CC-PLANT-01',
+            nombre='Plantilla Cuerpo Litografiado',
+            tipo=Producto.PLANTILLA,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('5.000000')
+        )
+
+        # Familia 2: Materia Prima Química
+        self.barniz = Producto.objects.create(
+            sku='MP-BAR-EPO',
+            nombre='Barniz Epoxifenólico Sanitario',
+            tipo=Producto.MATERIA_PRIMA,
+            unidad_medida=self.u_lt,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('120.000000')
+        )
+
+        # Familia 3: Componentes Metálicos
+        self.valvula = Producto.objects.create(
+            sku='CP-VAL-01',
+            nombre='Válvula Aerosol 1 Pulgada',
+            tipo=Producto.COMPONENTE,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('1.800000')
+        )
+        self.fondo = Producto.objects.create(
+            sku='CP-FON-01',
+            nombre='Fondo Domo Estándar',
+            tipo=Producto.COMPONENTE,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('0.900000')
+        )
+
+        # Producto Terminado
+        self.bote_aerosol = Producto.objects.create(
+            sku='PT-AER-200',
+            nombre='Bote Aerosol Industrial 200ml',
+            tipo=Producto.PRODUCTO_TERMINADO,
+            unidad_medida=self.u_pza,
+            moneda_base_costo=self.moneda_mxn,
+            moneda_base_venta=self.moneda_mxn,
+            costo_promedio_mxn=Decimal('0.000000')
+        )
+
+        # Receta BOM con las 3 familias de insumos
+        self.bom = ListaMaterialesBOM.objects.create(
+            producto_terminado=self.bote_aerosol,
+            cantidad_base=Decimal('1000.0000'),
+            descripcion_proceso='Corte primario, barnizado, soldadura y ensamble'
+        )
+        InsumoBOM.objects.create(
+            bom=self.bom, materia_prima=self.hojalata,
+            cantidad_requerida=Decimal('40.000000'), porcentaje_merma=Decimal('2.50')
+        )
+        InsumoBOM.objects.create(
+            bom=self.bom, materia_prima=self.plantilla,
+            cantidad_requerida=Decimal('1000.000000'), porcentaje_merma=Decimal('1.00')
+        )
+        InsumoBOM.objects.create(
+            bom=self.bom, materia_prima=self.barniz,
+            cantidad_requerida=Decimal('5.000000'), porcentaje_merma=Decimal('5.00')
+        )
+        InsumoBOM.objects.create(
+            bom=self.bom, materia_prima=self.valvula,
+            cantidad_requerida=Decimal('1000.000000'), porcentaje_merma=Decimal('0.50')
+        )
+        InsumoBOM.objects.create(
+            bom=self.bom, materia_prima=self.fondo,
+            cantidad_requerida=Decimal('1000.000000'), porcentaje_merma=Decimal('0.50')
+        )
+
+        # Cliente y Pedido de Venta en Firme
+        self.cliente = Cliente.objects.create(
+            razon_social='Pinturas Industriales S.A. de C.V.',
+            nombre_comercial='Pinturas Ind',
+            rfc='PIN950412AA1',
+            codigo_postal='06700',
+            correo='facturas@pinturasind.mx',
+            dias_credito=30
+        )
+        self.pedido = PedidoVenta_Maestro.objects.create(
+            folio='PED-2026-9001',
+            tipo_documento=PedidoVenta_Maestro.PEDIDO,
+            cliente=self.cliente,
+            bodega_despacho=self.bodega_pt,
+            moneda=self.moneda_mxn,
+            tipo_cambio_aplicado=Decimal('1.000000'),
+            estado=PedidoVenta_Maestro.CONFIRMADO,
+            subtotal=Decimal('25000.0000'),
+            impuestos=Decimal('4000.0000'),
+            total=Decimal('29000.0000'),
+            total_mxn=Decimal('29000.0000')
+        )
+        self.partida = PedidoVenta_Detalle.objects.create(
+            pedido=self.pedido,
+            producto=self.bote_aerosol,
+            cantidad=Decimal('2000.000000'),
+            precio_unitario=Decimal('12.500000')
+        )
+
+    def test_creacion_op_desde_pedido_en_firme(self):
+        """Valida que una OP se genere correctamente ligada a una partida de pedido de venta."""
+        orden = crear_orden_desde_pedido(
+            pedido_detalle=self.partida,
+            usuario=self.user,
+            bodega_origen_id=self.bodega_mp.id,
+            bodega_destino_id=self.bodega_pt.id
+        )
+
+        self.assertIsNotNone(orden)
+        self.assertTrue(orden.folio.startswith('OP-'))
+        self.assertEqual(orden.pedido_venta, self.pedido)
+        self.assertEqual(orden.pedido_detalle, self.partida)
+        self.assertEqual(orden.cantidad_a_producir, Decimal('2000.0000'))
+        self.assertEqual(orden.bodega_origen_insumos, self.bodega_mp)
+        self.assertEqual(orden.bodega_destino_pt, self.bodega_pt)
+        self.assertEqual(orden.estado, OrdenProduccion.PLANEADA)
+
+        # Relación inversa bidireccional
+        self.assertEqual(self.pedido.ordenes_produccion.count(), 1)
+        self.assertEqual(self.partida.ordenes_produccion.first(), orden)
+
+        # Insumos congelados para 2,000 botes (factor = 2)
+        self.assertEqual(orden.insumos_detalle.count(), 5)
+
+        # Validación: error si el pedido está cancelado
+        self.pedido.estado = PedidoVenta_Maestro.CANCELADO
+        self.pedido.save()
+        with self.assertRaises(ValueError):
+            crear_orden_desde_pedido(self.partida, self.user)
+
+    def test_explosion_materiales_bom_categorizada(self):
+        """Verifica la explosión clasificada en las 3 familias industriales con scrap y stock."""
+        # Cargar existencia física solo para la hojalata
+        Stock.objects.create(
+            producto=self.hojalata,
+            bodega=self.bodega_mp,
+            cantidad=Decimal('100.000000'),
+            cantidad_reservada=Decimal('10.000000')
+        )
+
+        explosion = explosion_materiales_bom(
+            producto=self.bote_aerosol,
+            cantidad=Decimal('1000.0000'),
+            bodega_origen=self.bodega_mp
+        )
+
+        self.assertTrue(explosion['tiene_bom'])
+        self.assertEqual(len(explosion['hojalata']), 2)       # hojalata rollo + plantilla
+        self.assertEqual(len(explosion['materia_prima']), 1)  # barniz
+        self.assertEqual(len(explosion['componentes']), 2)    # valvula + fondo
+        self.assertEqual(len(explosion['todos_insumos']), 5)
+
+        # Comprobar cálculo de merma y stock en Hojalata
+        item_hoj = next(item for item in explosion['hojalata'] if item['producto'] == self.hojalata)
+        # 40 kg + 2.5% merma = 41 kg
+        self.assertEqual(item_hoj['cantidad_requerida'], Decimal('41.000000'))
+        self.assertEqual(item_hoj['stock_disponible'], Decimal('90.000000'))
+        self.assertTrue(item_hoj['suficiente'])
+
+        # Comprobar que hay insumos faltantes en total
+        self.assertFalse(explosion['totales']['todos_disponibles'])
+        self.assertGreater(explosion['totales']['items_faltantes'], 0)
+        self.assertGreater(explosion['totales']['costo_total_mxn'], Decimal('0'))
+        self.assertGreater(explosion['totales']['costo_unitario_mxn'], Decimal('0'))
+
+    def test_inicializacion_y_avance_ensamble_6_estaciones(self):
+        """
+        Verifica que una OP inicialice sus 6 estaciones industriales y que
+        las piezas conformes se transfieran automáticamente a la siguiente estación.
+        """
+        orden = crear_orden_produccion(
+            producto_id=self.bote_aerosol.id,
+            cantidad=Decimal('1000.0000'),
+            bodega_origen_id=self.bodega_mp.id,
+            bodega_destino_id=self.bodega_pt.id,
+            usuario=self.user
+        )
+
+        etapas = list(orden.etapas_ensamble.all())
+        self.assertEqual(len(etapas), 6)
+        self.assertEqual(orden.etapas_total_count, 6)
+        self.assertEqual(orden.etapas_completadas_count, 0)
+
+        # Estación 1 arranca con la cantidad solicitada
+        etapa_1 = etapas[0]
+        self.assertEqual(etapa_1.codigo_etapa, EtapaProduccionOP.CORTE_HOJA)
+        self.assertEqual(etapa_1.cantidad_entrada, Decimal('1000.0000'))
+        self.assertEqual(etapa_1.estado, EtapaProduccionOP.ESTADO_PENDIENTE)
+
+        # Avanzar Estación 1: 980 conformes, 20 scrap -> COMPLETADA
+        etapa_1_up = actualizar_avance_etapa_ensamble(
+            etapa_id=etapa_1.id,
+            cantidad_buena=Decimal('980.0000'),
+            cantidad_scrap=Decimal('20.0000'),
+            nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
+            operador="Roberto Cizallador",
+            notas="Cizallado de bobinas T4 sin desajustes"
+        )
+        self.assertEqual(etapa_1_up.estado, EtapaProduccionOP.ESTADO_COMPLETADA)
+        self.assertIsNotNone(etapa_1_up.fecha_fin)
+
+        # Cascada: Estación 2 (Litografía) ahora debe tener cantidad_entrada = 980
+        etapa_2 = orden.etapas_ensamble.get(secuencia=2)
+        self.assertEqual(etapa_2.codigo_etapa, EtapaProduccionOP.LITOGRAFIA)
+        self.assertEqual(etapa_2.cantidad_entrada, Decimal('980.0000'))
+
+        # Orden transicionó a EN_PROCESO
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenProduccion.EN_PROCESO)
+
+        # Avanzar Estaciones 2, 3, 4, 5 secuencialmente
+        for sec in [2, 3, 4, 5]:
+            et = orden.etapas_ensamble.get(secuencia=sec)
+            actualizar_avance_etapa_ensamble(
+                etapa_id=et.id,
+                cantidad_buena=Decimal('970.0000'),
+                cantidad_scrap=Decimal('10.0000'),
+                nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
+                operador="Líder Línea"
+            )
+
+        # Última Estación 6: Prueba de Hermeticidad y Paletizado
+        etapa_6 = orden.etapas_ensamble.get(secuencia=6)
+        self.assertEqual(etapa_6.codigo_etapa, EtapaProduccionOP.PRUEBA_EMPAQUE)
+        self.assertEqual(etapa_6.cantidad_entrada, Decimal('970.0000'))
+
+        actualizar_avance_etapa_ensamble(
+            etapa_id=etapa_6.id,
+            cantidad_buena=Decimal('965.0000'),
+            cantidad_scrap=Decimal('5.0000'),
+            nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
+            operador="Control de Calidad"
+        )
+
+        orden.refresh_from_db()
+        self.assertEqual(orden.etapas_completadas_count, 6)
+        self.assertEqual(orden.cantidad_producida, Decimal('965.0000'))
+        self.assertGreater(orden.porcentaje_avance_ensamble, Decimal('90.0'))
+
+    def test_vistas_fase1_integracion(self):
+        """Comprueba los endpoints de interfaz HTMX y vistas de Fase 1."""
+        # 1. GET modal crear OP desde pedido
+        url_modal_pedido = reverse('produccion:crear_op_desde_pedido', kwargs={'detalle_id': self.partida.id})
+        resp = self.client.get(url_modal_pedido)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Lanzar Orden de Producción')
+        self.assertContains(resp, self.bote_aerosol.sku)
+
+        # 2. POST crear OP desde pedido
+        resp_post = self.client.post(url_modal_pedido, {
+            'cantidad': '2000.0000',
+            'bodega_origen_insumos': self.bodega_mp.id,
+            'bodega_destino_pt': self.bodega_pt.id,
+            'observaciones': 'Lanzamiento para cliente'
+        })
+        self.assertEqual(resp_post.status_code, 302)
+        op_creada = OrdenProduccion.objects.filter(pedido_detalle=self.partida).first()
+        self.assertIsNotNone(op_creada)
+
+        # 3. Vista detalle de orden contiene la información de pedido vinculado y etapas
+        url_detalle_op = reverse('produccion:detalle_orden', kwargs={'pk': op_creada.id})
+        resp_det = self.client.get(url_detalle_op)
+        self.assertEqual(resp_det.status_code, 200)
+        self.assertContains(resp_det, 'Pedido de Venta Vinculado')
+        self.assertContains(resp_det, self.pedido.folio)
+        self.assertContains(resp_det, 'Control de Avance en Línea de Ensamble')
+
+        # 4. POST HTMX actualizar etapa
+        etapa_1 = op_creada.etapas_ensamble.first()
+        url_up_etapa = reverse('produccion:actualizar_etapa_avance', kwargs={'pk': etapa_1.id})
+        resp_htmx = self.client.post(url_up_etapa, {
+            'cantidad_buena': '1950',
+            'cantidad_scrap': '50',
+            'nuevo_estado': 'COMPLETADA',
+            'operador': 'Operador HTMX'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp_htmx.status_code, 200)
+        self.assertContains(resp_htmx, 'Operador HTMX')
+

@@ -1,0 +1,446 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>REP_{{ factura.serie }}_{{ factura.folio }}</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 8mm 10mm 8mm 10mm;
+            @bottom-center {
+                content: "Este documento es una representación impresa de un CFDI de Pago (Versión 4.0 - Complemento Pagos 2.0)";
+                font-family: Arial, sans-serif;
+                font-size: 6.5pt;
+                color: #555555;
+            }
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 7.5pt;
+            color: #1a1a1a;
+            line-height: 1.15;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+        }
+
+        .logo-emisor-td {
+            width: 62%;
+            vertical-align: top;
+            padding-right: 8px;
+        }
+
+        .cfdi-datos-td {
+            width: 38%;
+            vertical-align: top;
+        }
+
+        .logo-box {
+            display: flex;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+
+        .logo-img {
+            max-height: 48px;
+            max-width: 180px;
+        }
+
+        .emisor-nombre {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #0d235c;
+            letter-spacing: 0.5px;
+            margin: 2px 0 4px 0;
+        }
+
+        .emisor-franja-azul {
+            background-color: #0d235c;
+            color: #ffffff;
+            padding: 4px 6px;
+            border-radius: 2px;
+            font-size: 7pt;
+            line-height: 1.25;
+        }
+
+        .emisor-rfc-box {
+            text-align: right;
+            padding-top: 3px;
+            font-size: 8.5pt;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .caja-cfdi {
+            border: 1px solid #7ba2d3;
+            border-radius: 3px;
+            background-color: #b7d1ed;
+            overflow: hidden;
+        }
+
+        .caja-cfdi-header {
+            background-color: #8bb5e5;
+            color: #0b1f4c;
+            font-weight: bold;
+            font-size: 8pt;
+            text-align: center;
+            padding: 3px;
+            border-bottom: 1px solid #7ba2d3;
+        }
+
+        .caja-cfdi-body {
+            padding: 3px 6px;
+            font-size: 6.8pt;
+        }
+
+        .caja-cfdi-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .caja-cfdi-table td {
+            padding: 1.5px 2px;
+        }
+
+        .uuid-highlight {
+            font-size: 6.8pt;
+            font-weight: bold;
+            color: #000000;
+            word-break: break-all;
+        }
+
+        .cliente-container {
+            width: 100%;
+            margin-top: 3px;
+            margin-bottom: 6px;
+            border: 1px solid #7ba2d3;
+            background-color: #e6effa;
+            border-radius: 3px;
+            display: table;
+        }
+
+        .cliente-sidebar {
+            display: table-cell;
+            width: 20px;
+            background-color: #4b7db8;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 8pt;
+            text-align: center;
+            vertical-align: middle;
+            letter-spacing: 2px;
+            padding: 0 4px;
+        }
+
+        .cliente-contenido {
+            display: table-cell;
+            vertical-align: top;
+            padding: 4px 8px;
+            font-size: 7.2pt;
+            line-height: 1.25;
+        }
+
+        .cliente-grid {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .cliente-grid td {
+            padding: 1px 0;
+            vertical-align: top;
+        }
+
+        /* Sección de Pago */
+        .seccion-titulo {
+            background-color: #0d235c;
+            color: #ffffff;
+            font-size: 7.5pt;
+            font-weight: bold;
+            padding: 3px 6px;
+            margin-top: 5px;
+            margin-bottom: 4px;
+            border-radius: 2px;
+        }
+
+        .datos-pago-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #f8fafc;
+            border: 1px solid #d0d7de;
+            margin-bottom: 6px;
+        }
+
+        .datos-pago-table td {
+            padding: 3px 6px;
+            font-size: 7.2pt;
+        }
+
+        /* Tabla de Documentos Relacionados */
+        .doctos-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        .doctos-table th {
+            background-color: #000000;
+            color: #ffffff;
+            font-size: 6.8pt;
+            font-weight: bold;
+            padding: 3.5px 4px;
+        }
+
+        .doctos-table td {
+            border-bottom: 1px solid #d0d7de;
+            padding: 3.5px 4px;
+            font-size: 7pt;
+            vertical-align: middle;
+        }
+
+        .doctos-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        /* Timbre Fiscal Digital */
+        .tfd-container {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+            margin-bottom: 4px;
+        }
+
+        .qr-td {
+            width: 105px;
+            vertical-align: top;
+            text-align: center;
+            padding-right: 6px;
+        }
+
+        .qr-img {
+            width: 100px;
+            height: 100px;
+        }
+
+        .sellos-td {
+            vertical-align: top;
+            padding-left: 2px;
+        }
+
+        .sello-label {
+            font-size: 6.5pt;
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 1px;
+            text-transform: uppercase;
+        }
+
+        .sello-content {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 5.2pt;
+            color: #222222;
+            line-height: 1.1;
+            word-break: break-all;
+            margin-bottom: 3.5px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. ENCABEZADO -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-emisor-td">
+                <div class="logo-box">
+                    <img src="{% static 'general/img/logo_decorlata.png' %}" class="logo-img" alt="DECORLATA">
+                </div>
+                <div class="emisor-nombre">DECORLATA S.A. DE C.V.</div>
+                <div class="emisor-franja-azul">
+                    <div>GRAL. MARIANO RUIZ No.121, SANTIAGO CUAUTLALPAN, Texcoco Edo. Mex. C.P. 56255</div>
+                    <div>Régimen Fiscal: (601) General de Ley Personas Morales</div>
+                </div>
+                <div class="emisor-rfc-box">
+                    RFC. : DEC-150115-B42
+                </div>
+            </td>
+
+            <td class="cfdi-datos-td">
+                <div class="caja-cfdi">
+                    <div class="caja-cfdi-header">
+                        Recibo Electrónico de Pago (CFDI)
+                    </div>
+                    <div class="caja-cfdi-body">
+                        <table class="caja-cfdi-table">
+                            <tr>
+                                <td style="width: 50%;"><strong>Serie:</strong> {{ factura.serie }}</td>
+                                <td style="width: 50%;"><strong>Folio:</strong> {{ factura.folio }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><strong>Fecha de Emisión:</strong><br>{{ factura.fecha_emision|date:"Y-m-d\TH:i:s" }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><strong>Fecha de Certificación:</strong><br>{{ factura.fecha_timbrado|date:"Y-m-d\TH:i:s" }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <strong>Folio Fiscal:</strong><br>
+                                    <span class="uuid-highlight">{{ factura.uuid|upper }}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <strong>Serie CSD Emisor:</strong><br>
+                                    {{ factura.no_certificado_emisor }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <strong>Serie CSD SAT:</strong><br>
+                                    {{ factura.no_certificado_sat }}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 2. RECEPTOR -->
+    <div class="cliente-container">
+        <div class="cliente-sidebar">
+            C<br>L<br>I<br>E<br>N<br>T<br>E
+        </div>
+        <div class="cliente-contenido">
+            <table class="cliente-grid">
+                <tr>
+                    <td style="width: 15%;"><strong>Receptor:</strong></td>
+                    <td style="width: 85%; font-weight: bold;">{{ factura.cliente.razon_social }}</td>
+                </tr>
+                <tr>
+                    <td><strong>R.F.C.:</strong></td>
+                    <td style="font-weight: bold;">{{ factura.cliente.rfc }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Uso de CFDI:</strong></td>
+                    <td>CP01 - Pagos</td>
+                </tr>
+                <tr>
+                    <td><strong>Domicilio:</strong></td>
+                    <td>
+                        {{ factura.cliente.direccion|default:"DOMICILIO FISCAL CONOCIDO" }}
+                        <strong>C.P.:</strong> {{ factura.cliente.codigo_postal }}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Régimen fiscal:</strong></td>
+                    <td>{{ factura.cliente.regimen_fiscal }} - {{ factura.cliente.get_regimen_fiscal_display }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. DETALLE DE LA OPERACIÓN DE PAGO -->
+    <div class="seccion-titulo">DATOS DE LA TRANSACCIÓN DE PAGO (COMPLEMENTO PAGOS 2.0)</div>
+    <table class="datos-pago-table">
+        <tr>
+            <td style="width: 25%;"><strong>Fecha y Hora de Pago:</strong></td>
+            <td style="width: 25%;">{{ factura.fecha_emision|date:"Y-m-d H:i:s" }}</td>
+            <td style="width: 25%;"><strong>Forma de Pago:</strong></td>
+            <td style="width: 25%;">{{ factura.forma_pago }} - {{ factura.get_forma_pago_display }}</td>
+        </tr>
+        <tr>
+            <td><strong>Moneda de Pago:</strong></td>
+            <td>{{ factura.moneda.codigo }} (TC: {{ factura.tipo_cambio|floatformat:2 }})</td>
+            <td><strong>Monto Total Recibido:</strong></td>
+            <td style="font-weight: bold; font-size: 8.5pt; color: #0d235c;">${{ monto_total_pagos|floatformat:2 }}</td>
+        </tr>
+        {% if factura.orden_compra_cliente %}
+        <tr>
+            <td><strong>No. de Operación / Ref:</strong></td>
+            <td colspan="3">{{ factura.orden_compra_cliente }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <div style="font-size: 7.2pt; font-weight: bold; margin-bottom: 6px;">
+        (SON: {{ importe_en_letras }})
+    </div>
+
+    <!-- 4. DOCUMENTOS RELACIONADOS (FACTURAS AMORTIZADAS) -->
+    <div class="seccion-titulo">DOCUMENTOS RELACIONADOS AMORTIZADOS</div>
+    <table class="doctos-table">
+        <thead>
+            <tr>
+                <th style="width: 32%; text-align: left;">Folio Fiscal (UUID) / Factura</th>
+                <th style="width: 8%; text-align: center;">Moneda</th>
+                <th style="width: 8%; text-align: center;">Parc.</th>
+                <th style="width: 17%; text-align: right;">Saldo Anterior</th>
+                <th style="width: 17%; text-align: right;">Importe Pagado</th>
+                <th style="width: 18%; text-align: right;">Saldo Insoluto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dr in factura.doctos_relacionados.all %}
+            <tr>
+                <td>
+                    <strong>{{ dr.factura_origen.folio_completo }}</strong><br>
+                    <span style="font-size: 6pt; color: #444444;">{{ dr.factura_origen.uuid|upper }}</span>
+                </td>
+                <td style="text-align: center;">{{ dr.factura_origen.moneda.codigo }}</td>
+                <td style="text-align: center; font-weight: bold;">{{ dr.num_parcialidad }}</td>
+                <td style="text-align: right;">${{ dr.imp_saldo_ant|floatformat:2 }}</td>
+                <td style="text-align: right; font-weight: bold; color: #0d235c;">${{ dr.imp_pagado|floatformat:2 }}</td>
+                <td style="text-align: right; font-weight: bold;">${{ dr.imp_saldo_insoluto|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 10px;">Sin documentos relacionados registrados</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 5. TIMBRE FISCAL DIGITAL SAT -->
+    <table class="tfd-container">
+        <tr>
+            <td class="qr-td">
+                {% if qr_code_base64 %}
+                <img src="{{ qr_code_base64 }}" class="qr-img" alt="QR SAT">
+                {% endif %}
+            </td>
+
+            <td class="sellos-td">
+                <div class="sello-label">Cadena Original del complemento de certificación digital del SAT</div>
+                <div class="sello-content">{{ factura.cadena_original }}</div>
+
+                <div class="sello-label">Sello digital del SAT</div>
+                <div class="sello-content">{{ factura.sello_sat }}</div>
+
+                <div class="sello-label">Sello digital del contribuyente que lo expide</div>
+                <div class="sello-content">{{ factura.sello_cfd }}</div>
+
+                {% if factura.notas %}
+                <div class="sello-label">Notas</div>
+                <div style="font-size: 6.5pt; color: #333333; margin-bottom: 2px;">{{ factura.notas }}</div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- 6. PIE DE PÁGINA -->
+    <table style="width: 100%; margin-top: 6px;">
+        <tr>
+            <td style="font-size: 6.8pt; font-weight: bold;">EFECTOS FISCALES AL PAGO</td>
+            <td style="font-size: 6.8pt; font-weight: bold; text-align: right;">Este documento es una representación impresa de un CFDI (Tipo P - Pago)</td>
+        </tr>
+    </table>
+
+</body>
+</html>

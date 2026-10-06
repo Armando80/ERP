@@ -1,0 +1,572 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}{{ pedido.get_tipo_documento_display }}: {{ pedido.folio }} | ERP Decorlata{% endblock %}
+
+{% block content %}
+<!-- Cabecera y Navegación -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'ventas:pedidos_catalogo' %}" class="text-decoration-none text-muted">Ventas</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'ventas:pedidos_catalogo' %}" class="text-decoration-none text-muted">Cotizaciones y Pedidos</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ pedido.folio }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h2 class="fw-bold text-dark mb-0">{{ pedido.folio }}</h2>
+            {% if pedido.tipo_documento == 'COT' %}
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-3 py-2 fs-6">
+                    <i class="bi bi-file-earmark-text me-1"></i>Cotización
+                </span>
+            {% else %}
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 fs-6">
+                    <i class="bi bi-cart-check me-1"></i>Pedido de Venta
+                </span>
+            {% endif %}
+
+            {% if pedido.estado == 'BORRADOR' %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-3 py-2 fs-6">Borrador</span>
+            {% elif pedido.estado == 'COTIZADO' %}
+                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning px-3 py-2 fs-6">Cotizado</span>
+            {% elif pedido.estado == 'CONFIRMADO' %}
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 fs-6">Confirmado</span>
+            {% elif pedido.estado == 'SURTIDO' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 fs-6">
+                    <i class="bi bi-check-all me-1"></i>Surtido en Almacén
+                </span>
+            {% elif pedido.estado == 'FACTURADO' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 fs-6">Facturado</span>
+            {% elif pedido.estado == 'CANCELADO' %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-2 fs-6">Cancelado</span>
+            {% endif %}
+
+            {% if pedido.stock_reservado %}
+                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-3 py-2 fs-6" title="Existencias apartadas formalmente en bodega">
+                    <i class="bi bi-lock-fill me-1 text-warning"></i>Stock Apartado
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Barra de Acciones Operativas -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{% url 'ventas:pedidos_catalogo' %}" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i>Volver al Catálogo
+        </a>
+
+        <!-- Botón para Descargar / Imprimir PDF Oficial con WeasyPrint (Fase 4) -->
+        <a href="{% url 'ventas:pedido_pdf' pedido.id %}" target="_blank" class="btn btn-outline-danger shadow-sm" title="Descargar PDF Oficial con Membrete y Pagaré">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i>Descargar PDF
+        </a>
+
+        <!-- Botón de Conversión de Cotización a Pedido -->
+        {% if pedido.tipo_documento == 'COT' and pedido.estado != 'CANCELADO' %}
+            <form action="{% url 'ventas:pedido_convertir' pedido.id %}" method="POST" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success shadow-sm"
+                        onclick="return confirm('¿Deseas convertir esta cotización en un Pedido en Firme? Se generará un nuevo folio PED y se asignará estado Confirmado.');">
+                    <i class="bi bi-arrow-repeat me-1"></i>Convertir a Pedido en Firme
+                </button>
+            </form>
+        {% endif %}
+
+        <!-- ACCIONES DE ALMACÉN Y SURTIDO (Fase 3) -->
+        {% if pedido.tipo_documento == 'PED' and pedido.estado == 'CONFIRMADO' %}
+            <!-- Botón para Surtir / Despachar Mercancía -->
+            <form action="{% url 'ventas:pedido_surtir' pedido.id %}" method="POST" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success shadow-sm"
+                        onclick="return confirm('¿Confirmas la salida física y despacho del Pedido {{ pedido.folio }} de la bodega {{ pedido.bodega_despacho.nombre }}? Se generarán los movimientos de salida correspondientes en el Kardex.');"
+                        {% if not disponibilidad.hay_stock_fisico_completo %}disabled title="Stock físico insuficiente para surtir todas las partidas"{% endif %}>
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Surtir Pedido / Despachar
+                </button>
+            </form>
+
+            <!-- Botones de Gestión de Reserva de Stock -->
+            {% if pedido.stock_reservado %}
+                <form action="{% url 'ventas:pedido_liberar_reserva' pedido.id %}" method="POST" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-warning shadow-sm"
+                            onclick="return confirm('¿Deseas liberar el stock apartado para este pedido en el almacén?');">
+                        <i class="bi bi-unlock me-1"></i>Liberar Reserva
+                    </button>
+                </form>
+            {% else %}
+                <form action="{% url 'ventas:pedido_reservar_stock' pedido.id %}" method="POST" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-primary shadow-sm"
+                            onclick="return confirm('¿Deseas apartar las existencias de este pedido en {{ pedido.bodega_despacho.nombre }}?');"
+                            {% if not disponibilidad.hay_disponible_completo %}disabled title="Existencias disponibles insuficientes para apartar"{% endif %}>
+                        <i class="bi bi-lock me-1"></i>Reservar Stock
+                    </button>
+                </form>
+            {% endif %}
+        {% endif %}
+
+        <!-- FACTURACIÓN ELECTRÓNICA SAT CFDI 4.0 (Fase 5) -->
+        {% if pedido.tipo_documento == 'PED' and pedido.estado == 'SURTIDO' %}
+            <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirFactura">
+                <i class="bi bi-receipt me-1"></i>Emitir Factura SAT (CFDI 4.0)
+            </button>
+        {% elif pedido.estado == 'FACTURADO' %}
+            {% with factura_activa=pedido.facturas.first %}
+                {% if factura_activa %}
+                    <a href="{% url 'ventas:factura_detalle' factura_activa.id %}" class="btn btn-outline-success shadow-sm">
+                        <i class="bi bi-receipt me-1"></i>Ver Factura {{ factura_activa.folio_completo }}
+                    </a>
+                {% endif %}
+            {% endwith %}
+        {% endif %}
+
+        {% if pedido.estado != 'CANCELADO' and pedido.estado != 'FACTURADO' and pedido.estado != 'SURTIDO' %}
+
+            <!-- Botón desplegable para cambio de estado rápido -->
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear me-1"></i>Gestionar Estado
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                    {% if pedido.estado == 'BORRADOR' %}
+                        <li>
+                            <form action="{% url 'ventas:pedido_cambiar_estado' pedido.id %}" method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="nuevo_estado" value="{% if pedido.tipo_documento == 'COT' %}COTIZADO{% else %}CONFIRMADO{% endif %}">
+                                <button type="submit" class="dropdown-item text-primary">
+                                    <i class="bi bi-check2-circle me-2"></i>Marcar como {% if pedido.tipo_documento == 'COT' %}Cotizado{% else %}Confirmado{% endif %}
+                                </button>
+                            </form>
+                        </li>
+                    {% elif pedido.estado == 'COTIZADO' %}
+                        <li>
+                            <form action="{% url 'ventas:pedido_cambiar_estado' pedido.id %}" method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="nuevo_estado" value="CONFIRMADO">
+                                <button type="submit" class="dropdown-item text-success">
+                                    <i class="bi bi-check-all me-2"></i>Aprobar / Confirmar
+                                </button>
+                            </form>
+                        </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <form action="{% url 'ventas:pedido_cambiar_estado' pedido.id %}" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="nuevo_estado" value="CANCELADO">
+                            <button type="submit" class="dropdown-item text-danger" onclick="return confirm('¿Confirmas la cancelación de este documento? Si tenía stock reservado, será liberado automáticamente.');">
+                                <i class="bi bi-x-circle me-2"></i>Cancelar Documento
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bloque de Mensajes del Sistema -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+            <i class="bi bi-info-circle me-2"></i>{{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Fila Superior: Resumen de Cliente y Parámetros del Documento -->
+<div class="row g-4 mb-4">
+    <!-- Información del Cliente -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-person-badge text-primary me-2"></i>Expediente del Cliente
+                </h6>
+                <span class="badge bg-light text-dark border">
+                    Días Crédito: {{ pedido.cliente.dias_credito }} días
+                </span>
+            </div>
+            <div class="card-body">
+                <h5 class="fw-bold text-dark mb-1">{{ pedido.cliente.razon_social }}</h5>
+                {% if pedido.cliente.nombre_comercial %}
+                    <p class="text-muted small mb-3">{{ pedido.cliente.nombre_comercial }}</p>
+                {% else %}
+                    <div class="mb-2"></div>
+                {% endif %}
+
+                <div class="row g-2 small text-secondary">
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">RFC:</span>
+                        <strong class="text-dark font-monospace">{{ pedido.cliente.rfc }}</strong>
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">Contacto Principal:</span>
+                        <strong class="text-dark">{{ pedido.cliente.contacto_principal|default:"No especificado" }}</strong>
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">Correo Electrónico:</span>
+                        {% if pedido.cliente.correo_pedidos %}
+                            <a href="mailto:{{ pedido.cliente.correo_pedidos }}" class="text-decoration-none">{{ pedido.cliente.correo_pedidos }}</a>
+                        {% else %}
+                            <span class="text-muted">Sin correo</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">Teléfono:</span>
+                        <span class="text-dark">{{ pedido.cliente.telefono|default:"Sin teléfono" }}</span>
+                    </div>
+                    <div class="col-12 mt-2 pt-2 border-top">
+                        <span class="text-muted d-block">Dirección Fiscal / Entrega:</span>
+                        <span class="text-dark">
+                            {{ pedido.cliente.direccion_calle }} {{ pedido.cliente.numero_exterior }}
+                            {% if pedido.cliente.colonia %}, Col. {{ pedido.cliente.colonia }}{% endif %}
+                            {% if pedido.cliente.ciudad %}, {{ pedido.cliente.ciudad }}{% endif %}
+                            {% if pedido.cliente.codigo_postal %}, C.P. {{ pedido.cliente.codigo_postal }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parámetros Logísticos, Fiscales y Multidivisa -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-sliders text-primary me-2"></i>Condiciones Comerciales y Fiscales
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 small">
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Fecha de Emisión:</span>
+                            <strong class="text-dark">{{ pedido.fecha_emision|date:"d M Y" }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Fecha Compromiso de Entrega:</span>
+                            <strong class="text-dark">
+                                {% if pedido.fecha_compromiso %}
+                                    {{ pedido.fecha_compromiso|date:"d M Y" }}
+                                {% else %}
+                                    <span class="text-muted fw-normal">Por definir</span>
+                                {% endif %}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Bodega de Despacho:</span>
+                            <strong class="text-dark">{{ pedido.bodega_despacho.nombre }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Referencia / O.C. Cliente:</span>
+                            <strong class="text-dark">{{ pedido.referencia_cliente|default:"Sin referencia" }}</strong>
+                        </div>
+                    </div>
+
+                    {% if pedido.fecha_surtido %}
+                    <div class="col-12">
+                        <div class="p-2 rounded bg-success bg-opacity-10 border border-success border-opacity-25 text-success">
+                            <i class="bi bi-box-seam me-1"></i>
+                            <strong>Despachado del Almacén:</strong> {{ pedido.fecha_surtido|date:"d M Y H:i" }}
+                            {% if pedido.usuario_surtio %} por <strong>{{ pedido.usuario_surtio.get_full_name|default:pedido.usuario_surtio.username }}</strong>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Uso de CFDI (SAT):</span>
+                            <strong class="text-dark">{{ pedido.uso_cfdi|default:"G03 Gastos en general" }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-2 rounded bg-light border">
+                            <span class="text-muted d-block">Método / Forma Pago:</span>
+                            <strong class="text-dark">{{ pedido.metodo_pago }} - {{ pedido.forma_pago }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Snapshot Multidivisa -->
+                <div class="alert alert-primary bg-opacity-10 border-primary border-opacity-25 mt-3 mb-0 py-2 px-3 small d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-cash-coin me-1"></i>
+                        <strong>Moneda de Registro:</strong> {{ pedido.moneda.nombre }} ({{ pedido.moneda.codigo }})
+                    </div>
+                    <div>
+                        <span class="text-muted">Tipo de Cambio Aplicado:</span>
+                        <strong class="font-monospace text-dark ms-1">${{ pedido.tipo_cambio_aplicado|floatformat:4 }} MXN</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Partidas / Detalle de Productos con Análisis de Stock en Tiempo Real -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-dark mb-0">
+            <i class="bi bi-box-seam text-primary me-2"></i>Partidas del Pedido ({{ disponibilidad.total_partidas }})
+        </h6>
+        <div>
+            {% if pedido.estado == 'SURTIDO' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success px-2 py-1">
+                    <i class="bi bi-check2-all me-1"></i>100% Surtido
+                </span>
+            {% elif disponibilidad.hay_stock_fisico_completo %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success px-2 py-1">
+                    <i class="bi bi-check-circle me-1"></i>Stock Físico Completo en Bodega
+                </span>
+            {% else %}
+                <span class="badge bg-warning bg-opacity-25 text-danger border border-warning px-2 py-1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Requiere Abastecimiento / Producción
+                </span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 4%;">#</th>
+                        <th style="width: 32%;">Producto / Especificación</th>
+                        <th class="text-center" style="width: 12%;">Cantidad Pedida</th>
+                        <th class="text-center" style="width: 14%;">Stock en {{ pedido.bodega_despacho.nombre }}</th>
+                        <th class="text-center" style="width: 14%;">Orden de Producción</th>
+                        <th class="text-end" style="width: 11%;">Precio Unit. ({{ pedido.moneda.codigo }})</th>
+                        <th class="text-end pe-4" style="width: 13%;">Subtotal ({{ pedido.moneda.codigo }})</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary small">
+                    {% for p in disponibilidad.partidas %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ p.producto.nombre }}</div>
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class="badge bg-light text-secondary border font-monospace">{{ p.producto.sku }}</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">{{ p.producto.get_tipo_display }}</span>
+                                {% if p.detalle.notas_linea %}
+                                    <span class="text-muted fst-italic"><i class="bi bi-info-circle me-1"></i>{{ p.detalle.notas_linea }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <span class="fw-bold text-dark fs-6">{{ p.detalle.cantidad|floatformat:2 }}</span>
+                            <span class="text-muted ms-1">{{ p.producto.unidad_medida.codigo }}</span>
+                            {% if pedido.estado == 'SURTIDO' %}
+                                <div class="text-success small fw-semibold">
+                                    <i class="bi bi-check-all"></i> Surtido: {{ p.detalle.cantidad_surtida|floatformat:2 }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <!-- Columna de Stock en Tiempo Real -->
+                        <td class="text-center">
+                            <div class="small">
+                                <span class="text-dark fw-bold">{{ p.stock_fisico|floatformat:2 }}</span> <span class="text-muted">físico</span>
+                                {% if p.stock_reservado > 0 %}
+                                    <span class="badge bg-warning bg-opacity-25 text-dark ms-1" title="Stock reservado en esta bodega">{{ p.stock_reservado|floatformat:0 }} res.</span>
+                                {% endif %}
+                            </div>
+                            {% if pedido.estado == 'SURTIDO' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success mt-1" style="font-size: 0.72rem;">
+                                    <i class="bi bi-check-circle me-1"></i>Despachado
+                                </span>
+                            {% elif p.tiene_fisico %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success mt-1" style="font-size: 0.72rem;">
+                                    <i class="bi bi-check me-1"></i>Existencia OK
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger mt-1" style="font-size: 0.72rem;">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Faltan {{ p.faltante_fisico|floatformat:2 }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <!-- Columna de Orden de Producción Ligada -->
+                        <td class="text-center">
+                            {% if p.detalle.ordenes_produccion.all %}
+                                {% for op in p.detalle.ordenes_produccion.all %}
+                                    <div class="mb-1">
+                                        <a href="{% url 'produccion:detalle_orden' op.id %}" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" title="Ver Orden de Producción">
+                                            <i class="bi bi-gear-fill me-1"></i>{{ op.folio }}
+                                        </a>
+                                    </div>
+                                    <div>
+                                        {% if op.estado == 'PLA' %}
+                                            <span class="badge bg-secondary bg-opacity-25 text-dark" style="font-size: 0.7rem;">Planeada</span>
+                                        {% elif op.estado == 'PRO' %}
+                                            <span class="badge bg-warning bg-opacity-25 text-dark" style="font-size: 0.7rem;">En Proceso ({{ op.porcentaje_avance_ensamble|floatformat:0 }}%)</span>
+                                        {% elif op.estado == 'TER' %}
+                                            <span class="badge bg-success bg-opacity-25 text-success" style="font-size: 0.7rem;">Terminada</span>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            {% elif pedido.estado == 'CONFIRMADO' or pedido.estado == 'SURTIDO' %}
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-warning text-dark py-1 px-2 fw-semibold"
+                                        hx-get="{% url 'produccion:crear_op_desde_pedido' p.detalle.id %}"
+                                        hx-target="#modal-lanzar-op-container"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalLanzarOP"
+                                        title="Lanzar Orden de Producción ligada a esta partida">
+                                    <i class="bi bi-play-circle-fill me-1 text-warning"></i>Lanzar OP
+                                </button>
+                            {% else %}
+                                <span class="text-muted small">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold text-dark">
+                            {{ pedido.moneda.simbolo|default:"$" }}{{ p.detalle.precio_unitario|floatformat:4 }}
+                        </td>
+                        <td class="text-end pe-4 fw-bold text-dark fs-6">
+                            {{ pedido.moneda.simbolo|default:"$" }}{{ p.detalle.subtotal_linea|floatformat:2 }}
+                            {% if pedido.moneda.codigo != 'MXN' %}
+                                <div class="text-muted small fw-normal" style="font-size: 0.75rem;">
+                                    ≈ ${{ p.detalle.subtotal_linea|floatformat:2 }} × {{ pedido.tipo_cambio_aplicado|floatformat:2 }} MXN
+                                </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            No se han registrado partidas para este pedido.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Trazabilidad de Salidas en Kardex si el Pedido está Surtido -->
+{% if movimientos_kardex %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-success mb-0">
+            <i class="bi bi-journal-check me-2"></i>Movimientos de Salida Generados en el Kardex ({{ movimientos_kardex|length }})
+        </h6>
+        <a href="{% url 'inventario:movimientos' %}?q={{ pedido.folio }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-search me-1"></i>Ver en Kardex de Inventario
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light small text-uppercase text-muted">
+                    <tr>
+                        <th class="ps-4">Fecha y Hora</th>
+                        <th>Producto</th>
+                        <th>Bodega Origen</th>
+                        <th class="text-center">Cantidad Salida</th>
+                        <th class="text-end">Costo Unit. Kardex</th>
+                        <th>Responsable</th>
+                        <th class="pe-4">Referencia</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for mov in movimientos_kardex %}
+                    <tr>
+                        <td class="ps-4">{{ mov.fecha|date:"d M Y H:i" }}</td>
+                        <td class="fw-bold text-dark">{{ mov.producto.nombre }} ({{ mov.producto.sku }})</td>
+                        <td>{{ mov.bodega_origen.nombre }}</td>
+                        <td class="text-center fw-bold text-danger">-{{ mov.cantidad|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">${{ mov.costo_unitario_mxn_capturado|floatformat:4 }} MXN</td>
+                        <td>{{ mov.usuario.username }}</td>
+                        <td class="pe-4 font-monospace">{{ mov.referencia_operacion }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pie: Observaciones y Cuadro Resumen de Totales y Valuación Contable -->
+<div class="row g-4">
+    <!-- Observaciones Comerciales -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-chat-left-text text-primary me-2"></i>Observaciones y Condiciones Especiales
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if pedido.observaciones %}
+                    <p class="text-secondary small mb-0" style="white-space: pre-line;">{{ pedido.observaciones }}</p>
+                {% else %}
+                    <p class="text-muted small fst-italic mb-0">Sin observaciones comerciales adicionales registradas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen Financiero y Contable -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm bg-light">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-dark mb-3">Resumen de Liquidación</h6>
+                
+                <div class="d-flex justify-content-between mb-2 small text-secondary">
+                    <span>Subtotal ({{ pedido.moneda.codigo }}):</span>
+                    <strong class="text-dark">{{ pedido.moneda.simbolo|default:"$" }}{{ pedido.subtotal|floatformat:2 }}</strong>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2 small text-secondary">
+                    <span>IVA Trasladado (16%):</span>
+                    <strong class="text-dark">{{ pedido.moneda.simbolo|default:"$" }}{{ pedido.impuestos|floatformat:2 }}</strong>
+                </div>
+
+                <hr class="my-2">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="fs-6 fw-bold text-dark">Total Documento:</span>
+                    <span class="fs-5 fw-bold text-primary">
+                        {{ pedido.moneda.simbolo|default:"$" }}{{ pedido.total|floatformat:2 }} <small class="fs-6 fw-normal text-muted">{{ pedido.moneda.codigo }}</small>
+                    </span>
+                </div>
+
+                <!-- Recuadro de Valuación Contable MXN -->
+                <div class="p-3 bg-white rounded border border-primary border-opacity-25 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted d-block small">Valuación Contable Oficial:</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                Base Moneda Nacional
+                            </span>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold text-success font-monospace">${{ pedido.total_mxn|floatformat:2 }}</span>
+                            <small class="text-muted d-block" style="font-size: 0.75rem;">MXN</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'ventas/partials/_modal_emitir_factura.html' %}
+
+<!-- Modal para Lanzar Orden de Producción (Fase 1) -->
+<div class="modal fade" id="modalLanzarOP" tabindex="-1" aria-hidden="true">
+    <div id="modal-lanzar-op-container"></div>
+</div>
+{% endblock %}
+

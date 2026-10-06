@@ -80,6 +80,18 @@ class Producto(models.Model):
         max_digits=18, decimal_places=6, default=Decimal('0.000000'), help_text="Costo promedio unitario en MXN para contabilidad"
     )
 
+    # --- Clasificación Fiscal SAT (CFDI 4.0) ---
+    clave_sat = models.CharField(
+        max_length=10, default='24121800',
+        verbose_name="Clave SAT Prod/Serv",
+        help_text="Clave de producto/servicio SAT (ej. 24121800 para empaques y envases metálicos)"
+    )
+    clave_unidad_sat = models.CharField(
+        max_length=10, default='H87',
+        verbose_name="Clave Unidad SAT",
+        help_text="Clave de unidad de medida SAT (ej. H87 para Pieza, KGM para Kilogramo)"
+    )
+
     class Meta:
         verbose_name = "Producto"
         verbose_name_plural = "Catálogo de Productos"

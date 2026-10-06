@@ -1,0 +1,186 @@
+<!-- ERP Decorlata - produccion/partials/_etapas_linea_timeline.html -->
+<div id="contenedor-etapas-ensamble" class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold text-dark mb-0">
+                <i class="bi bi-diagram-3-fill text-primary me-2"></i>Control de Avance en Línea de Ensamble
+            </h5>
+            <small class="text-muted">Monitoreo secuencial en las 6 estaciones industriales de planta Decorlata.</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border px-2 py-1">
+                <i class="bi bi-check2-circle text-success me-1"></i>{{ orden.etapas_completadas_count }} de {{ orden.etapas_total_count }} Estaciones Completadas
+            </span>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 fs-6">
+                {{ orden.porcentaje_avance_ensamble|floatformat:1 }}% Avance
+            </span>
+        </div>
+    </div>
+
+    <!-- Barra de Progreso Global Ponderada -->
+    <div class="card-body border-bottom bg-light bg-opacity-50 py-3">
+        <div class="d-flex justify-content-between align-items-center mb-1 small">
+            <span class="fw-semibold text-secondary">Progreso General del Lote (Meta: {{ orden.cantidad_a_producir|floatformat:0 }} {{ orden.producto_a_fabricar.unidad_medida.codigo }}):</span>
+            <span class="fw-bold text-primary">{{ orden.porcentaje_avance_ensamble|floatformat:1 }}%</span>
+        </div>
+        <div class="progress" style="height: 10px;">
+            <div class="progress-bar bg-primary progress-bar-striped {% if orden.estado == 'PRO' %}progress-bar-animated{% endif %}"
+                 role="progressbar"
+                 style="width: {{ orden.porcentaje_avance_ensamble|floatformat:1 }}%;"
+                 aria-valuenow="{{ orden.porcentaje_avance_ensamble|floatformat:1 }}"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid / Timeline de las 6 Estaciones -->
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 4%;">#</th>
+                        <th style="width: 28%;">Estación Industrial</th>
+                        <th class="text-center" style="width: 12%;">Estado</th>
+                        <th class="text-center" style="width: 14%;">Piezas Entrada</th>
+                        <th class="text-center" style="width: 14%;">Conformes / Buenas</th>
+                        <th class="text-center" style="width: 12%;">Merma / Scrap</th>
+                        <th class="text-center pe-4" style="width: 16%;">Acciones de Línea</th>
+                    </tr>
+                </thead>
+                <tbody class="small text-secondary">
+                    {% for etapa in etapas %}
+                    <tr class="{% if etapa.estado == 'COMPLETADA' %}table-success bg-opacity-10{% elif etapa.estado == 'EN_PROCESO' %}table-warning bg-opacity-10{% endif %}">
+                        <td class="ps-4 fw-bold text-muted">{{ etapa.secuencia }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ etapa.nombre_etapa }}</div>
+                            <div class="d-flex align-items-center gap-2 mt-1 small">
+                                {% if etapa.operador %}
+                                    <span class="text-muted"><i class="bi bi-person me-1"></i>{{ etapa.operador }}</span>
+                                {% else %}
+                                    <span class="text-muted fst-italic"><i class="bi bi-person-dash me-1"></i>Sin operador asignado</span>
+                                {% endif %}
+                                {% if etapa.fecha_inicio %}
+                                    <span class="text-muted"><i class="bi bi-clock me-1"></i>{{ etapa.fecha_inicio|date:"d/m H:i" }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            {% if etapa.estado == 'PENDIENTE' %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                                    <i class="bi bi-hourglass me-1"></i>Pendiente
+                                </span>
+                            {% elif etapa.estado == 'EN_PROCESO' %}
+                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 py-1">
+                                    <i class="bi bi-gear-fill me-1"></i>En Proceso
+                                </span>
+                            {% elif etapa.estado == 'COMPLETADA' %}
+                                <span class="badge bg-success bg-opacity-25 text-success border border-success px-2 py-1">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Completada
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center font-monospace">
+                            <span class="text-dark fw-bold">{{ etapa.cantidad_entrada|floatformat:0 }}</span>
+                            <small class="text-muted">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                        </td>
+                        <td class="text-center font-monospace">
+                            <span class="fw-bold {% if etapa.cantidad_buena > 0 %}text-success{% else %}text-muted{% endif %}">
+                                {{ etapa.cantidad_buena|floatformat:0 }}
+                            </span>
+                            <small class="text-muted">{{ orden.producto_a_fabricar.unidad_medida.codigo }}</small>
+                            {% if etapa.porcentaje_avance_etapa > 0 %}
+                                <div class="text-muted" style="font-size: 0.72rem;">{{ etapa.porcentaje_avance_etapa|floatformat:1 }}% meta</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-center font-monospace">
+                            {% if etapa.cantidad_scrap > 0 %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1">
+                                    <i class="bi bi-trash3 me-1"></i>{{ etapa.cantidad_scrap|floatformat:0 }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center pe-4">
+                            {% if orden.estado != 'CAN' %}
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapseEtapa{{ etapa.id }}"
+                                        aria-expanded="false">
+                                    <i class="bi bi-pencil-square me-1"></i>Capturar
+                                </button>
+                            {% else %}
+                                <span class="text-muted small">&mdash;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Fila colapsable para captura rápida vía HTMX -->
+                    <tr class="collapse" id="collapseEtapa{{ etapa.id }}">
+                        <td colspan="7" class="bg-light p-3 border-bottom">
+                            <form hx-post="{% url 'produccion:actualizar_etapa_avance' etapa.id %}"
+                                  hx-target="#contenedor-etapas-ensamble"
+                                  hx-swap="outerHTML"
+                                  class="row g-2 align-items-end">
+                                {% csrf_token %}
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-bold text-muted mb-1">Estado de Estación:</label>
+                                    <select name="nuevo_estado" class="form-select form-select-sm">
+                                        <option value="PENDIENTE" {% if etapa.estado == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
+                                        <option value="EN_PROCESO" {% if etapa.estado == 'EN_PROCESO' %}selected{% endif %}>En Proceso</option>
+                                        <option value="COMPLETADA" {% if etapa.estado == 'COMPLETADA' %}selected{% endif %}>Completada</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-bold text-muted mb-1">Piezas Conformes:</label>
+                                    <input type="number" step="1" min="0" name="cantidad_buena"
+                                           value="{{ etapa.cantidad_buena|floatformat:0 }}"
+                                           class="form-control form-control-sm font-monospace" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-bold text-muted mb-1">Merma / Scrap:</label>
+                                    <input type="number" step="1" min="0" name="cantidad_scrap"
+                                           value="{{ etapa.cantidad_scrap|floatformat:0 }}"
+                                           class="form-control form-control-sm font-monospace">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-muted mb-1">Operador / Líder:</label>
+                                    <input type="text" name="operador"
+                                           value="{{ etapa.operador|default:'' }}"
+                                           placeholder="Nombre del operario"
+                                           class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-3 d-flex gap-2">
+                                    <button type="submit" class="btn btn-sm btn-primary w-100 fw-semibold">
+                                        <i class="bi bi-save me-1"></i>Guardar Avance
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#collapseEtapa{{ etapa.id }}">
+                                        Cancelar
+                                    </button>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <input type="text" name="notas"
+                                           value="{{ etapa.notas|default:'' }}"
+                                           placeholder="Notas de calidad, paros mecánicos o incidencias..."
+                                           class="form-control form-control-sm text-secondary">
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            No se han configurado estaciones de ensamble para esta orden.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

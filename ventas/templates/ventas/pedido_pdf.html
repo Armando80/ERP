@@ -1,0 +1,482 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ pedido.get_tipo_documento_display }} - {{ pedido.folio }}</title>
+    <style>
+        /* Configuración de Hoja A4 / Carta para Impresión Formal */
+        @page {
+            size: letter;
+            margin: 1.2cm 1.2cm 1.5cm 1.2cm;
+            @bottom-left {
+                content: "DECORLATA S.A. DE C.V. | Planta Industrial Texcoco, Edo. Méx. | ventas@decorlata.com";
+                font-size: 8px;
+                color: #64748b;
+            }
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 8px;
+                color: #64748b;
+                font-weight: bold;
+            }
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10px;
+            color: #1e293b;
+            line-height: 1.35;
+        }
+
+        /* Encabezado Principal y Membrete */
+        .header {
+            width: 100%;
+            border-bottom: 2.5px solid #0f172a;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .header table { width: 100%; border-collapse: collapse; }
+        .logo { max-height: 58px; max-width: 170px; }
+        
+        .company-data {
+            font-size: 8.5px;
+            color: #475569;
+            line-height: 1.25;
+            padding-left: 10px;
+        }
+        .company-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+        }
+
+        .doc-title-block {
+            text-align: right;
+            vertical-align: top;
+        }
+        .doc-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+        .doc-subtitle {
+            font-size: 9px;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .doc-folio {
+            font-size: 14px;
+            font-weight: bold;
+            color: #0284c7;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* Cajas Informativas de Datos */
+        .info-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+        }
+        .info-grid td {
+            vertical-align: top;
+            width: 50%;
+            padding: 3px;
+        }
+        .info-box {
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background-color: #f8fafc;
+            padding: 7px 10px;
+            min-height: 98px;
+        }
+        .info-box h4 {
+            margin: 0 0 5px 0;
+            font-size: 9.5px;
+            font-weight: bold;
+            color: #0f172a;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .info-box p {
+            margin: 0;
+            font-size: 9px;
+            color: #334155;
+            line-height: 1.3;
+        }
+
+        /* Tabla de Partidas */
+        .table-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+        }
+        .table-items th {
+            background-color: #0f172a;
+            color: #ffffff;
+            font-size: 8.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 6px 7px;
+            letter-spacing: 0.3px;
+        }
+        .table-items td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 5px 7px;
+            font-size: 9px;
+            vertical-align: middle;
+        }
+        .table-items tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .font-mono { font-family: 'Courier New', Courier, monospace; font-size: 8.5px; }
+
+        /* Cuadro de Totales y Moneda */
+        .summary-container {
+            width: 100%;
+            margin-bottom: 10px;
+            border-collapse: collapse;
+        }
+        .summary-container td { vertical-align: top; }
+        
+        .amount-words-box {
+            width: 58%;
+            padding: 6px 8px;
+            background-color: #f1f5f9;
+            border-left: 3px solid #0284c7;
+            border-radius: 2px;
+            font-size: 8.5px;
+            color: #1e293b;
+        }
+
+        .totals-table {
+            width: 38%;
+            border-collapse: collapse;
+            float: right;
+        }
+        .totals-table td {
+            padding: 3px 6px;
+            font-size: 9px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .totals-table .total-row {
+            font-size: 11px;
+            font-weight: bold;
+            color: #0f172a;
+            border-top: 1.5px solid #0f172a;
+            border-bottom: 1.5px solid #0f172a;
+            background-color: #f8fafc;
+        }
+
+        /* Términos y Condiciones Industriales */
+        .terms-box {
+            border: 1px solid #e2e8f0;
+            background-color: #ffffff;
+            padding: 6px 8px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            font-size: 7.8px;
+            color: #475569;
+            line-height: 1.25;
+            page-break-inside: avoid;
+        }
+        .terms-box strong { color: #0f172a; }
+        .terms-title {
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #0f172a;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 2px;
+        }
+
+        /* Pagaré Mercantil */
+        .promissory-note {
+            border: 1.5px solid #0f172a;
+            background-color: #fafaf9;
+            padding: 8px 10px;
+            border-radius: 3px;
+            margin-bottom: 12px;
+            page-break-inside: avoid;
+        }
+        .promissory-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #0f172a;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #0f172a;
+            padding-bottom: 2px;
+        }
+        .promissory-text {
+            font-size: 7.8px;
+            color: #1c1917;
+            text-align: justify;
+            line-height: 1.25;
+            margin-bottom: 0;
+        }
+
+        /* Firmas de Autorización */
+        .signatures-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            page-break-inside: avoid;
+        }
+        .signatures-table td {
+            width: 50%;
+            text-align: center;
+            padding: 5px 15px;
+            vertical-align: bottom;
+        }
+        .signature-space {
+            height: 40px;
+        }
+        .signature-line {
+            border-top: 1px solid #334155;
+            padding-top: 3px;
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .signature-sub {
+            font-size: 7.5px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. ENCABEZADO Y MEMBRETE INDUSTRIAL -->
+    <div class="header">
+        <table>
+            <tr>
+                <td style="width: 25%; vertical-align: middle;">
+                    <img src="{% static 'general/img/logo_decorlata.png' %}" class="logo" alt="Decorlata">
+                </td>
+                <td style="width: 45%;" class="company-data">
+                    <span class="company-name">DECORLATA S.A. DE C.V.</span><br>
+                    <strong>RFC:</strong> DEC150115B42<br>
+                    <strong>Planta Industrial:</strong> Gral. Mariano Ruiz 121, Santiago Cuautlalpan,<br>
+                    C.P. 56255, Texcoco, Estado de México, México.<br>
+                    <strong>Tel:</strong> +52 55 6499 3375 | <strong>Email:</strong> ventas@decorlata.com
+                </td>
+                <td style="width: 30%;" class="doc-title-block">
+                    {% if pedido.tipo_documento == 'COT' %}
+                        <h1 class="doc-title">COTIZACIÓN</h1>
+                        <div class="doc-subtitle">Commercial Quotation</div>
+                    {% else %}
+                        <h1 class="doc-title">PEDIDO DE VENTA</h1>
+                        <div class="doc-subtitle">Firm Sales Order</div>
+                    {% endif %}
+                    <div class="doc-folio">{{ pedido.folio }}</div>
+                    <div style="font-size: 8.5px; color: #475569; margin-top: 3px;">
+                        <strong>Emisión:</strong> {{ pedido.fecha_emision|date:"d/m/Y" }}<br>
+                        <strong>Compromiso:</strong> {{ pedido.fecha_compromiso|date:"d/m/Y"|default:"Por programar" }}<br>
+                        <strong>Estado:</strong> {{ pedido.get_estado_display }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2. DATOS DEL CLIENTE Y CONDICIONES LOGÍSTICO-FISCALES -->
+    <table class="info-grid">
+        <tr>
+            <!-- Datos del Cliente -->
+            <td>
+                <div class="info-box">
+                    <h4>Cliente / Facturar y Enviar a:</h4>
+                    <p>
+                        <strong style="font-size: 10px; color: #0f172a;">{{ pedido.cliente.razon_social }}</strong><br>
+                        {% if pedido.cliente.nombre_comercial %}
+                            <em>{{ pedido.cliente.nombre_comercial }}</em><br>
+                        {% endif %}
+                        <strong>RFC:</strong> <span class="font-mono">{{ pedido.cliente.rfc }}</span><br>
+                        <strong>Contacto:</strong> {{ pedido.cliente.contacto_principal|default:"Atención Comercial" }} | 
+                        <strong>Tel:</strong> {{ pedido.cliente.telefono|default:"N/A" }}<br>
+                        <strong>Email:</strong> {{ pedido.cliente.correo_pedidos|default:pedido.cliente.correo|default:"N/A" }}<br>
+                        <strong>Dirección Fiscal / Entrega:</strong> {{ pedido.cliente.direccion_calle }} {{ pedido.cliente.numero_exterior }}
+                        {% if pedido.cliente.colonia %}, Col. {{ pedido.cliente.colonia }}{% endif %}
+                        {% if pedido.cliente.ciudad %}, {{ pedido.cliente.ciudad }}{% endif %}, C.P. {{ pedido.cliente.codigo_postal }}.
+                    </p>
+                </div>
+            </td>
+
+            <!-- Condiciones Comerciales y Logísticas -->
+            <td>
+                <div class="info-box">
+                    <h4>Condiciones Comerciales y Fiscales (SAT):</h4>
+                    <p>
+                        <strong>Almacén de Despacho:</strong> {{ pedido.bodega_despacho.nombre }}<br>
+                        <strong>Referencia / O.C. Cliente:</strong> {{ pedido.referencia_cliente|default:"Sin Referencia" }}<br>
+                        <strong>Condiciones de Pago:</strong> {{ pedido.condiciones_pago|default:"Contado" }} 
+                        {% if pedido.cliente.dias_credito > 0 %}(Crédito: {{ pedido.cliente.dias_credito }} días){% endif %}<br>
+                        <strong>Uso de CFDI:</strong> {{ pedido.uso_cfdi|default:"G03 Gastos en general" }} | 
+                        <strong>Método / Forma:</strong> {{ pedido.metodo_pago }} - {{ pedido.forma_pago }}<br>
+                        <strong>Moneda de Registro:</strong> {{ pedido.moneda.nombre }} ({{ pedido.moneda.codigo }})<br>
+                        {% if pedido.moneda.codigo != 'MXN' %}
+                            <strong>Tipo de Cambio Oficial (Banxico):</strong> ${{ pedido.tipo_cambio_aplicado|floatformat:4 }} MXN<br>
+                        {% endif %}
+                        {% if pedido.fecha_surtido %}
+                            <strong style="color: #166534;">Surtido Almacén:</strong> {{ pedido.fecha_surtido|date:"d/m/Y H:i" }}
+                        {% endif %}
+                    </p>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 3. PARTIDAS DE LA ORDEN COMERCIAL -->
+    <table class="table-items">
+        <thead>
+            <tr>
+                <th style="width: 4%;" class="text-center">#</th>
+                <th style="width: 16%;">SKU / Código</th>
+                <th style="width: 42%;">Descripción / Especificación Técnica</th>
+                <th style="width: 10%;" class="text-center">Cantidad</th>
+                <th style="width: 13%;" class="text-right">Precio Unit. ({{ pedido.moneda.codigo }})</th>
+                <th style="width: 15%;" class="text-right">Subtotal ({{ pedido.moneda.codigo }})</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in detalles %}
+            <tr>
+                <td class="text-center text-muted">{{ forloop.counter }}</td>
+                <td class="font-mono"><strong>{{ d.producto.sku }}</strong></td>
+                <td>
+                    <strong style="color: #0f172a;">{{ d.producto.nombre }}</strong>
+                    {% if d.notas_linea %}
+                        <div style="font-size: 8px; color: #64748b; font-style: italic;">
+                            Notas: {{ d.notas_linea }}
+                        </div>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <strong>{{ d.cantidad|floatformat:"2g" }}</strong> 
+                    <small style="color: #64748b;">{{ d.producto.unidad_medida.codigo }}</small>
+                </td>
+                <td class="text-right font-mono">
+                    {{ pedido.moneda.simbolo }}{{ d.precio_unitario|floatformat:4 }}
+                </td>
+                <td class="text-right font-mono">
+                    <strong>{{ pedido.moneda.simbolo }}{{ d.subtotal_linea|floatformat:2 }}</strong>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center" style="padding: 15px; color: #94a3b8;">
+                    No se registraron partidas en este documento.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 4. TOTALES E IMPORTE CON LETRA -->
+    <table class="summary-container">
+        <tr>
+            <!-- Importe con Letra y Observaciones -->
+            <td style="width: 58%; padding-right: 15px;">
+                <div class="amount-words-box">
+                    <strong>IMPORTE CON LETRA:</strong><br>
+                    (SON: {{ total_en_letras }})
+                </div>
+                {% if pedido.observaciones %}
+                    <div style="margin-top: 6px; font-size: 8px; color: #334155; line-height: 1.25;">
+                        <strong>Observaciones Comerciales / Entrega:</strong><br>
+                        {{ pedido.observaciones|linebreaksbr }}
+                    </div>
+                {% endif %}
+            </td>
+
+            <!-- Liquidación Financiera -->
+            <td style="width: 42%;">
+                <table class="totals-table">
+                    <tr>
+                        <td style="color: #475569;">Subtotal:</td>
+                        <td class="text-right font-mono">{{ pedido.moneda.simbolo }}{{ pedido.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #475569;">IVA Trasladado (16%):</td>
+                        <td class="text-right font-mono">{{ pedido.moneda.simbolo }}{{ pedido.impuestos|floatformat:2 }}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td>TOTAL ({{ pedido.moneda.codigo }}):</td>
+                        <td class="text-right font-mono">{{ pedido.moneda.simbolo }}{{ pedido.total|floatformat:2 }}</td>
+                    </tr>
+                    {% if pedido.moneda.codigo != 'MXN' %}
+                    <tr>
+                        <td style="font-size: 8px; color: #64748b;">Equivalente Contable en MXN:</td>
+                        <td class="text-right font-mono" style="font-size: 8.5px; font-weight: bold; color: #0284c7;">
+                            ${{ pedido.total_mxn|floatformat:2 }} MXN
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 5. TÉRMINOS Y CONDICIONES COMERCIALES INDUSTRIALES -->
+    <div class="terms-box">
+        <div class="terms-title">Términos y Condiciones Industriales de Venta (Decorlata S.A. de C.V.)</div>
+        <strong>1. Vigencia:</strong> Las cotizaciones tienen una validez de 15 días naturales a partir de su emisión; los precios pactados en moneda extranjera o cotizaciones están sujetos a variación extraordinaria por tipo de cambio oficial o fluctuación internacional del mercado de hojalata y recubrimientos.<br>
+        <strong>2. Plazos de Fabricación y Entrega:</strong> Los tiempos de entrega corren a partir de la confirmación formal del pedido, recepción de anticipo cuando aplique y visto bueno final de pruebas de color o artes litográficos.(30 dias hábiles para productos de línea, 45 dias hábiles para nuevos diseños/productos)<br>
+        <strong>3. Tolerancias Industriales:</strong> De acuerdo con los usos y costumbres de la industria litográfica y de envases metálicos, los pedidos están sujetos a una tolerancia de fabricación de ±5% en producto terminado.<br>
+        <strong>4. Cuentas y Transferencias:</strong> Pagos únicamente vía transferencia bancaria a nombre de DECORLATA S.A. DE C.V. No se aceptan pagos en efectivo a personal de reparto.<br>
+        <strong>5. Garantía:</strong> Cualquier reclamación por temas de calidad deberá notificarse por escrito dentro de los 15 días naturales siguientes a la recepción física del lote en almacén.
+    </div>
+
+    <!-- 6. PAGARÉ MERCANTIL (Art. 170 LGTOC)
+    <div class="promissory-note">
+        <div class="promissory-title">PAGARÉ MERCANTIL</div>
+        <p class="promissory-text">
+            Por este Pagaré mercantil, el suscrito <strong>{{ pedido.cliente.razon_social }}</strong> (con RFC: <strong>{{ pedido.cliente.rfc }}</strong>), 
+            por conducto de su representante legal, reconoce deber y promete pagar incondicionalmente a la orden de <strong>DECORLATA S.A. DE C.V.</strong>, 
+            en la ciudad de Texcoco, Estado de México o en cualquier otra plaza que se le requiera, el día del vencimiento pactado 
+            ({% if pedido.cliente.dias_credito > 0 %}{{ pedido.cliente.dias_credito }} días naturales posteriores a la entrega{% else %}A la vista / Contado{% endif %}), 
+            la cantidad de <strong>{{ pedido.moneda.simbolo }}{{ pedido.total|floatformat:2 }} {{ pedido.moneda.codigo }} ({{ total_en_letras }})</strong>, 
+            valor recibido a mi (nuestra) entera satisfacción en mercancías de empaque industrial. Si no fuere pagado puntualmente a su vencimiento, 
+            causará intereses moratorios a razón del <strong>3.0% (tres por ciento) mensual</strong> desde la fecha de exigibilidad hasta su total y efectiva liquidación. 
+            El suscriptor renuncia a todo fuero que pudiera corresponderle por razón de su domicilio presente o futuro, sometiéndose expresamente a la jurisdicción 
+            de los tribunales competentes de la ciudad de Texcoco, Estado de México.
+        </p>
+    </div> -->
+
+    <!-- 7. FIRMAS DE ACEPTACIÓN Y CONTRAPARTES -->
+    <table class="signatures-table">
+        <tr>
+            <td>
+                <div class="signature-space"></div>
+                <div class="signature-line">
+                    {{ pedido.cliente.razon_social }}<br>
+                    <span style="font-size: 8px; font-weight: normal;">RFC: {{ pedido.cliente.rfc }}</span>
+                </div>
+                <div class="signature-sub">Aceptación de Pedido (Cliente)</div>
+            </td>
+            <td>
+                <div class="signature-space"></div>
+                <div class="signature-line">
+                    DECORLATA S.A. DE C.V.<br>
+                    <span style="font-size: 8px; font-weight: normal;">Departamento Comercial y Ventas</span>
+                </div>
+                <div class="signature-sub">Emisión y Validación Comercial Autorizada</div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!-- ERP Decorlata - produccion/partials/_modal_crear_op_pedido.html -->
+<div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+        <form action="{% url 'produccion:crear_op_desde_pedido' detalle.id %}" method="POST">
+            {% csrf_token %}
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-gear-wide-connected me-2"></i>Lanzar Orden de Producción: Pedido {{ detalle.pedido.folio }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Tarjeta Resumen de la Partida Comercial -->
+                <div class="card bg-light border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row g-3 small">
+                            <div class="col-md-5">
+                                <span class="text-muted d-block">Cliente y Pedido:</span>
+                                <strong class="text-dark fs-6">{{ detalle.pedido.cliente.razon_social }}</strong>
+                                <span class="badge bg-secondary font-monospace ms-2">{{ detalle.pedido.folio }}</span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Producto a Fabricar:</span>
+                                <strong class="text-dark">{{ detalle.producto.nombre }}</strong>
+                                <span class="badge bg-light text-dark border font-monospace ms-1">{{ detalle.producto.sku }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <span class="text-muted d-block">Cantidad Requerida en Pedido:</span>
+                                <strong class="text-primary fs-5 font-monospace">{{ detalle.cantidad|floatformat:2 }} {{ detalle.producto.unidad_medida.codigo }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parámetros Operativos de Manufactura -->
+                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                    <i class="bi bi-sliders me-2 text-primary"></i>Configuración de Fabricación
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Cantidad a Producir:</label>
+                        <input type="number" step="0.0001" min="0.0001" name="cantidad" value="{{ detalle.cantidad }}"
+                               class="form-control form-control-sm font-monospace fw-bold" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Almacén de Insumos (Origen):</label>
+                        <select name="bodega_origen_insumos" class="form-select form-select-sm" required>
+                            {% for b in bodegas %}
+                                <option value="{{ b.id }}" {% if bodega_sugerida.id == b.id %}selected{% endif %}>{{ b.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Almacén de Entrega (PT):</label>
+                        <select name="bodega_destino_pt" class="form-select form-select-sm" required>
+                            {% for b in bodegas %}
+                                <option value="{{ b.id }}" {% if detalle.pedido.bodega_despacho_id == b.id %}selected{% endif %}>{{ b.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Fecha Compromiso:</label>
+                        <input type="date" name="fecha_compromiso"
+                               value="{{ detalle.pedido.fecha_compromiso|date:'Y-m-d' }}"
+                               class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-muted mb-1">Observaciones / Instrucciones de Lote:</label>
+                        <input type="text" name="observaciones"
+                               value="Fabricación ligada a Pedido {{ detalle.pedido.folio }} - Cliente: {{ detalle.pedido.cliente.razon_social }}"
+                               class="form-control form-control-sm">
+                    </div>
+                </div>
+
+                <!-- Bloque de Explosión de Materiales BOM para esta Orden -->
+                {% include 'produccion/partials/_explosion_materiales_bloque.html' %}
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary fw-semibold shadow-sm">
+                    <i class="bi bi-play-circle-fill me-1"></i> Confirmar y Generar Orden de Producción
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

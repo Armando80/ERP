@@ -1,0 +1,392 @@
+{% extends 'general/base.html' %}
+{% load static %}
+
+{% block title %}Nueva Venta / Cotización | ERP Decorlata{% endblock %}
+
+{% block content %}
+<form method="post" action="{% url 'ventas:pedido_crear' %}" id="form-pedido-venta">
+    {% csrf_token %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a href="{% url 'general:dashboard' %}" class="text-decoration-none text-muted">Inicio</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'ventas:pedidos_catalogo' %}" class="text-decoration-none text-muted">Ventas</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Nueva Captura</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-file-earmark-plus text-primary me-2"></i>Nueva Cotización o Pedido de Venta
+            </h2>
+            <p class="text-muted mb-0 small">Emisión de cotización comercial o pedido en firme con cálculo multidivisa e impuestos.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'ventas:pedidos_catalogo' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm" id="btn-guardar-pedido">
+                <i class="bi bi-save me-2"></i> Guardar Documento
+            </button>
+        </div>
+    </div>
+
+    <!-- Bloque de Mensajes del Sistema -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- 1. ENCABEZADO Y CONDICIONES COMERCIALES -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="fw-bold mb-0 text-dark small text-uppercase">
+                    <i class="bi bi-info-circle text-primary me-2"></i>1. Encabezado del Documento y Condiciones
+                </h5>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" id="badge-tipo-doc">
+                    Modo: Pedido de Venta
+                </span>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3 mb-3">
+                <!-- Tipo de Documento -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-secondary">Tipo de Documento *</label>
+                    <select name="tipo_documento" id="tipo_documento" class="form-select border-secondary border-opacity-25 fw-bold" onchange="actualizarModoDocumento()" required>
+                        <option value="PED" selected>Pedido de Venta (Firme)</option>
+                        <option value="COT">Cotización Comercial</option>
+                    </select>
+                </div>
+
+                <!-- Cliente -->
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold small text-secondary">Cliente *</label>
+                    <select name="cliente" id="cliente_id" class="form-select border-secondary border-opacity-25" onchange="actualizarDatosCliente()" required>
+                        <option value="">Seleccione un cliente de la cartera...</option>
+                        {% for c in clientes %}
+                            <option value="{{ c.id }}"
+                                    data-dias="{{ c.dias_credito }}"
+                                    data-limite="{{ c.limite_credito }}"
+                                    data-rfc="{{ c.rfc }}">
+                                {{ c.razon_social }} ({{ c.rfc }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Bodega de Despacho -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Almacén de Despacho *</label>
+                    <select name="bodega_despacho" id="bodega_id" class="form-select border-secondary border-opacity-25" required>
+                        <option value="">Seleccione almacén de origen...</option>
+                        {% for b in bodegas %}
+                            <option value="{{ b.id }}">{{ b.nombre }} ({{ b.codigo }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <!-- Moneda de Venta -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-secondary">Moneda de Venta *</label>
+                    <select name="moneda" id="moneda_id" class="form-select border-secondary border-opacity-25" onchange="actualizarMoneda()" required>
+                        {% for m in monedas %}
+                            <option value="{{ m.id }}"
+                                    data-codigo="{{ m.codigo }}"
+                                    data-simbolo="{{ m.simbolo }}">
+                                {{ m.codigo }} - {{ m.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Tipo de Cambio Oficial del Día -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-secondary">Tipo de Cambio Oficial (MXN)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-muted small">$</span>
+                        <input type="text" id="tipo_cambio_display" class="form-control bg-light font-monospace" value="1.000000" readonly>
+                    </div>
+                    <small class="text-muted" id="badge-fuente-tc" style="font-size: 0.75rem;">Moneda base contable</small>
+                </div>
+
+                <!-- Fecha Compromiso -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-secondary">Fecha Compromiso de Entrega</label>
+                    <input type="date" name="fecha_compromiso" class="form-control border-secondary border-opacity-25">
+                </div>
+
+                <!-- Tasa de IVA -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-secondary">Tasa de IVA (%)</label>
+                    <div class="input-group">
+                        <input type="number" name="tasa_iva" id="tasa_iva" class="form-control border-secondary border-opacity-25 text-end" value="16.00" step="0.01" oninput="calcularTotalesGlobales()">
+                        <span class="input-group-text bg-light text-muted">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <!-- Condiciones de Pago -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Condiciones de Pago</label>
+                    <input type="text" name="condiciones_pago" id="condiciones_pago" class="form-control border-secondary border-opacity-25" placeholder="Ej. Contado o 30 días de crédito">
+                </div>
+
+                <!-- Orden de Compra del Cliente / Referencia -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">OC del Cliente / Referencia</label>
+                    <input type="text" name="referencia_cliente" class="form-control border-secondary border-opacity-25" placeholder="Ej. PO-2026-901">
+                </div>
+
+                <!-- Observaciones -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">Observaciones de Embarque</label>
+                    <input type="text" name="observaciones" class="form-control border-secondary border-opacity-25" placeholder="Instrucciones especiales de entrega...">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. PARTIDAS DE LA ORDEN DE VENTA -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark small text-uppercase">
+                <i class="bi bi-box-seam text-primary me-2"></i>2. Partidas y Productos Cotizados
+            </h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarFila()">
+                <i class="bi bi-plus-circle me-1"></i> Agregar Partida
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0" id="tabla-detalles">
+                    <thead class="table-light text-muted small text-uppercase">
+                        <tr>
+                            <th style="width: 45%;">Producto / SKU</th>
+                            <th style="width: 15%;" class="text-end">Cantidad</th>
+                            <th style="width: 18%;" class="text-end">Precio Unitario (<span class="simbolo-moneda">$</span>)</th>
+                            <th style="width: 17%;" class="text-end">Subtotal Partida (<span class="simbolo-moneda">$</span>)</th>
+                            <th style="width: 5%;" class="text-center">Quitar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="filas-container">
+                        <!-- Filas dinámicas inyectadas con JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- BOTÓN AÑADIR FILA Y TOTALES -->
+            <div class="p-3 border-top bg-light d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="agregarFila()">
+                    <i class="bi bi-plus-lg me-1"></i> Añadir Otro Producto
+                </button>
+
+                <!-- Tarjeta Resumen de Totales -->
+                <div class="bg-white p-3 rounded shadow-sm border" style="min-width: 320px;">
+                    <div class="d-flex justify-content-between mb-2 small text-secondary">
+                        <span>Subtotal:</span>
+                        <span class="fw-semibold font-monospace">
+                            <span class="simbolo-moneda">$</span><span id="lbl-subtotal">0.00</span> <span class="codigo-moneda">MXN</span>
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 small text-secondary">
+                        <span>IVA (<span id="lbl-tasa-iva">16</span>%):</span>
+                        <span class="fw-semibold font-monospace">
+                            <span class="simbolo-moneda">$</span><span id="lbl-impuestos">0.00</span> <span class="codigo-moneda">MXN</span>
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                        <span class="fw-bold text-dark fs-6">TOTAL:</span>
+                        <span class="fw-bold text-primary fs-5 font-monospace">
+                            <span class="simbolo-moneda">$</span><span id="lbl-total">0.00</span> <span class="codigo-moneda">MXN</span>
+                        </span>
+                    </div>
+                    <div class="border-top pt-2 mt-2 d-none" id="bloque-total-mxn">
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>Equivalente en MXN:</span>
+                            <span class="fw-bold text-dark font-monospace" id="lbl-total-mxn">$0.00 MXN</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    // Mapa de Tipos de Cambio Oficiales precargados desde el servidor
+    const TIPOS_CAMBIO = {
+        'MXN': 1.0,
+        'USD': parseFloat("{{ tc_usd|default:'18.1343' }}") || 18.1343,
+        'EUR': parseFloat("{{ tc_eur|default:'20.3122' }}") || 20.3122
+    };
+
+    // 1. Agregar una nueva fila de producto
+    function agregarFila() {
+        const tbody = document.getElementById('filas-container');
+        const fila = document.createElement('tr');
+
+        fila.innerHTML = `
+            <td>
+                <select name="producto[]" class="form-select form-select-sm border-secondary border-opacity-25 select-producto" required>
+                    <option value="">Seleccionar producto / SKU...</option>
+                    {% for p in productos %}
+                        <option value="{{ p.id }}">{{ p.nombre }} [{{ p.sku }}] ({{ p.unidad_medida.codigo }})</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="notas_linea[]" class="form-control form-control-sm border-0 bg-transparent text-muted mt-1" placeholder="Nota opcional para esta partida...">
+            </td>
+            <td>
+                <input type="number" name="cantidad[]" class="form-control form-control-sm text-end input-cantidad font-monospace" placeholder="1.00" min="0.01" step="0.01" oninput="calcularFila(this)" required>
+            </td>
+            <td>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light simbolo-moneda">$</span>
+                    <input type="number" name="precio_unitario[]" class="form-control text-end input-precio font-monospace" placeholder="0.00" min="0.0001" step="0.0001" oninput="calcularFila(this)" required>
+                </div>
+            </td>
+            <td class="text-end fw-semibold text-dark align-middle font-monospace">
+                <span class="simbolo-moneda">$</span><span class="lbl-subtotal-fila">0.00</span>
+            </td>
+            <td class="text-center align-middle">
+                <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="eliminarFila(this)" title="Eliminar partida">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(fila);
+        actualizarSimboloMoneda();
+    }
+
+    // 2. Calcular subtotal de una sola fila
+    function calcularFila(elemento) {
+        const fila = elemento.closest('tr');
+        const cantidad = parseFloat(fila.querySelector('.input-cantidad').value) || 0;
+        const precio = parseFloat(fila.querySelector('.input-precio').value) || 0;
+
+        const subtotalLinea = cantidad * precio;
+        fila.querySelector('.lbl-subtotal-fila').textContent = subtotalLinea.toFixed(2);
+
+        calcularTotalesGlobales();
+    }
+
+    // 3. Eliminar fila
+    function eliminarFila(boton) {
+        const filas = document.querySelectorAll('#filas-container tr');
+        if (filas.length > 1) {
+            boton.closest('tr').remove();
+            calcularTotalesGlobales();
+        } else {
+            alert('El pedido debe tener al menos una partida de producto.');
+        }
+    }
+
+    // 4. Calcular totales globales
+    function calcularTotalesGlobales() {
+        let subtotal = 0;
+        document.querySelectorAll('.lbl-subtotal-fila').forEach(celda => {
+            subtotal += parseFloat(celda.textContent) || 0;
+        });
+
+        const tasaIva = parseFloat(document.getElementById('tasa_iva').value) || 0;
+        const impuestos = subtotal * (tasaIva / 100);
+        const total = subtotal + impuestos;
+
+        document.getElementById('lbl-subtotal').textContent = subtotal.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('lbl-impuestos').textContent = impuestos.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('lbl-total').textContent = total.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('lbl-tasa-iva').textContent = tasaIva.toFixed(0);
+
+        // Valuación en MXN si la moneda no es local
+        const selectMoneda = document.getElementById('moneda_id');
+        const codigoMoneda = selectMoneda.options[selectMoneda.selectedIndex].getAttribute('data-codigo');
+        const tc = TIPOS_CAMBIO[codigoMoneda] || 1.0;
+        const bloqueMXN = document.getElementById('bloque-total-mxn');
+
+        if (codigoMoneda !== 'MXN') {
+            const totalMXN = total * tc;
+            document.getElementById('lbl-total-mxn').textContent = `$${totalMXN.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})} MXN`;
+            if (bloqueMXN) bloqueMXN.classList.remove('d-none');
+        } else {
+            if (bloqueMXN) bloqueMXN.classList.add('d-none');
+        }
+    }
+
+    // 5. Actualizar símbolo de moneda en UI y tipo de cambio
+    function actualizarMoneda() {
+        const selectMoneda = document.getElementById('moneda_id');
+        const opt = selectMoneda.options[selectMoneda.selectedIndex];
+        const codigo = opt.getAttribute('data-codigo') || 'MXN';
+        const simbolo = opt.getAttribute('data-simbolo') || '$';
+        const tc = TIPOS_CAMBIO[codigo] || 1.0;
+
+        document.querySelectorAll('.simbolo-moneda').forEach(el => el.textContent = simbolo);
+        document.querySelectorAll('.codigo-moneda').forEach(el => el.textContent = codigo);
+
+        const inputTC = document.getElementById('tipo_cambio_display');
+        const badgeTC = document.getElementById('badge-fuente-tc');
+        if (inputTC) inputTC.value = tc.toFixed(6);
+
+        if (badgeTC) {
+            if (codigo === 'MXN') badgeTC.textContent = 'Moneda base contable (1:1)';
+            else if (codigo === 'USD') badgeTC.textContent = 'Banxico FIX Oficial';
+            else if (codigo === 'EUR') badgeTC.textContent = 'Banxico / BCE Oficial';
+        }
+
+        calcularTotalesGlobales();
+    }
+
+    function actualizarSimboloMoneda() {
+        const selectMoneda = document.getElementById('moneda_id');
+        if (!selectMoneda) return;
+        const opt = selectMoneda.options[selectMoneda.selectedIndex];
+        if (!opt) return;
+        const simbolo = opt.getAttribute('data-simbolo') || '$';
+        document.querySelectorAll('.simbolo-moneda').forEach(el => el.textContent = simbolo);
+    }
+
+    // 6. Prellenar datos al seleccionar cliente
+    function actualizarDatosCliente() {
+        const selectCli = document.getElementById('cliente_id');
+        const opt = selectCli.options[selectCli.selectedIndex];
+        if (!opt || !opt.value) return;
+
+        const dias = parseInt(opt.getAttribute('data-dias')) || 0;
+        const inputCond = document.getElementById('condiciones_pago');
+        if (inputCond) {
+            inputCond.value = dias > 0 ? `${dias} días de crédito` : 'Contado';
+        }
+    }
+
+    // 7. Actualizar modo visual entre Pedido y Cotización
+    function actualizarModoDocumento() {
+        const tipo = document.getElementById('tipo_documento').value;
+        const badge = document.getElementById('badge-tipo-doc');
+        const btn = document.getElementById('btn-guardar-pedido');
+
+        if (tipo === 'COT') {
+            badge.textContent = 'Modo: Cotización Comercial';
+            badge.className = 'badge bg-info bg-opacity-10 text-info border border-info border-opacity-25';
+            btn.innerHTML = '<i class="bi bi-file-earmark-text me-2"></i> Guardar Cotización';
+        } else {
+            badge.textContent = 'Modo: Pedido de Venta (Firme)';
+            badge.className = 'badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25';
+            btn.innerHTML = '<i class="bi bi-cart-check me-2"></i> Guardar Pedido';
+        }
+    }
+
+    // Iniciar con 1 fila vacía
+    document.addEventListener('DOMContentLoaded', function() {
+        agregarFila();
+        actualizarMoneda();
+    });
+</script>
+{% endblock %}

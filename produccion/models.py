@@ -214,6 +214,25 @@ class OrdenProduccion(models.Model):
         help_text="Almacén al cual ingresará el lote terminado"
     )
 
+    # Vinculación Comercial con Pedidos de Venta
+    pedido_venta = models.ForeignKey(
+        'ventas.PedidoVenta_Maestro',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ordenes_produccion',
+        verbose_name="Pedido de Venta Relacionado",
+        help_text="Pedido comercial en firme que originó esta orden de producción"
+    )
+    pedido_detalle = models.ForeignKey(
+        'ventas.PedidoVenta_Detalle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ordenes_produccion',
+        verbose_name="Partida de Pedido Específica"
+    )
+
     # Tiempos
     fecha_inicio = models.DateTimeField(
         default=timezone.now,
@@ -304,6 +323,26 @@ class OrdenProduccion(models.Model):
     def entregas_pendientes_count(self):
         """Número de entregas enviadas que esperan autorización de almacén."""
         return self.entregas_parciales.filter(estado=EntregaParcialProduccion.PENDIENTE).count()
+
+    @property
+    def etapas_completadas_count(self):
+        """Número de etapas de ensamble marcadas como completadas."""
+        return self.etapas_ensamble.filter(estado='COMPLETADA').count()
+
+    @property
+    def etapas_total_count(self):
+        """Número total de etapas configuradas en la línea de ensamble."""
+        return self.etapas_ensamble.count()
+
+    @property
+    def porcentaje_avance_ensamble(self):
+        """Calcula el avance ponderado en la línea de ensamble (0.0% a 100.0%)."""
+        total = self.etapas_total_count
+        if not total:
+            return self.porcentaje_avance
+        suma = sum((e.porcentaje_avance_etapa for e in self.etapas_ensamble.all()), Decimal('0.0'))
+        return round(suma / Decimal(str(total)), 1)
+
 
 
 class OrdenProduccion_Insumo(models.Model):
@@ -510,5 +549,125 @@ class EntregaParcial_Insumo(models.Model):
 
     def __str__(self):
         return f"{self.insumo.sku}: {self.cantidad_consumida} para {self.entrega.folio_entrega}"
+
+
+# ==============================================================================
+# CONTROL DE AVANCE EN LÍNEAS DE ENSAMBLE Y ESTACIONES DE MANUFACTURA
+# ==============================================================================
+
+class EtapaProduccionOP(models.Model):
+    """
+    Control de Avance en Líneas de Ensamble y Estaciones de Fabricación.
+    Rastrea el progreso secuencial de una orden de producción a través de las
+    estaciones industriales clave de la fábrica de Decorlata.
+    """
+    CORTE_HOJA = 'CORTE_HOJA'
+    LITOGRAFIA = 'LITOGRAFIA'
+    CORTE_CUERPO = 'CORTE_CUERPO'
+    SOLDADURA = 'SOLDADURA'
+    ENSAMBLE = 'ENSAMBLE'
+    PRUEBA_EMPAQUE = 'PRUEBA_EMPAQUE'
+
+    ETAPAS_CHOICES = [
+        (CORTE_HOJA, '1. Cizallado Primario de Hojalata'),
+        (LITOGRAFIA, '2. Litografía y Barnizado'),
+        (CORTE_CUERPO, '3. Corte de Plantillas (Cuerpos)'),
+        (SOLDADURA, '4. Formado y Soldadura Eléctrica'),
+        (ENSAMBLE, '5. Línea de Ensamble y Engargolado'),
+        (PRUEBA_EMPAQUE, '6. Prueba de Hermeticidad y Paletizado'),
+    ]
+
+    ESTADO_PENDIENTE = 'PENDIENTE'
+    ESTADO_EN_PROCESO = 'EN_PROCESO'
+    ESTADO_COMPLETADA = 'COMPLETADA'
+
+    ESTADOS_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_EN_PROCESO, 'En Proceso'),
+        (ESTADO_COMPLETADA, 'Completada'),
+    ]
+
+    orden = models.ForeignKey(
+        OrdenProduccion,
+        on_delete=models.CASCADE,
+        related_name='etapas_ensamble',
+        verbose_name="Orden de Producción"
+    )
+    codigo_etapa = models.CharField(
+        max_length=25,
+        choices=ETAPAS_CHOICES,
+        verbose_name="Estación / Etapa Industrial"
+    )
+    nombre_etapa = models.CharField(
+        max_length=120,
+        verbose_name="Nombre de la Estación"
+    )
+    secuencia = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Secuencia en Línea"
+    )
+    estado = models.CharField(
+        max_length=15,
+        choices=ESTADOS_CHOICES,
+        default=ESTADO_PENDIENTE,
+        verbose_name="Estado de la Estación"
+    )
+    cantidad_entrada = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=Decimal('0.0000'),
+        verbose_name="Cantidad Recibida en Estación"
+    )
+    cantidad_buena = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=Decimal('0.0000'),
+        verbose_name="Piezas Conformes / Procesadas"
+    )
+    cantidad_scrap = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=Decimal('0.0000'),
+        verbose_name="Merma / Scrap (Piezas Defectuosas)"
+    )
+    operador = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Operador / Líder de Línea"
+    )
+    fecha_inicio = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Inicio en Estación"
+    )
+    fecha_fin = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fin en Estación"
+    )
+    notas = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones de Calidad / Proceso"
+    )
+
+    class Meta:
+        verbose_name = "Etapa de Línea de Ensamble"
+        verbose_name_plural = "Etapas de Líneas de Ensamble"
+        ordering = ['secuencia', 'id']
+        unique_together = ('orden', 'codigo_etapa')
+
+    def __str__(self):
+        return f"{self.orden.folio} - {self.nombre_etapa} ({self.get_estado_display()})"
+
+    @property
+    def porcentaje_avance_etapa(self):
+        """Calcula el porcentaje de piezas procesadas respecto al objetivo de la orden."""
+        meta = self.orden.cantidad_a_producir
+        if meta and meta > Decimal('0'):
+            return min(Decimal('100.0'), round((self.cantidad_buena / meta) * Decimal('100.0'), 1))
+        return Decimal('0.0')
+
 
 

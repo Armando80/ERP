@@ -1,0 +1,92 @@
+<div class="modal fade" id="modalEmitirFactura" tabindex="-1" aria-labelledby="modalEmitirFacturaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form action="{% url 'ventas:pedido_facturar' pedido.id %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="modalEmitirFacturaLabel">
+                        <i class="bi bi-receipt me-2"></i>Emitir Factura SAT (CFDI 4.0)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info border-0 d-flex align-items-center mb-3 py-2">
+                        <i class="bi bi-info-circle-fill fs-5 me-2"></i>
+                        <div class="small">
+                            Se emitirá la factura fiscal para el pedido <strong>{{ pedido.folio }}</strong> por un total de
+                            <strong>${{ pedido.total|floatformat:2 }} {{ pedido.moneda.codigo }}</strong> a nombre de
+                            <strong>{{ pedido.cliente.razon_social }}</strong>.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Método de Pago SAT <span class="text-danger">*</span></label>
+                        <select name="metodo_pago" class="form-select" id="selectMetodoPago" onchange="actualizarFormaPagoSegunMetodo(this.value)">
+                            <option value="PPD" {% if pedido.metodo_pago == 'PPD' or pedido.cliente.dias_credito > 0 %}selected{% endif %}>
+                                PPD - Pago en parcialidades o diferido (Recomendado para Crédito)
+                            </option>
+                            <option value="PUE" {% if pedido.metodo_pago == 'PUE' and pedido.cliente.dias_credito == 0 %}selected{% endif %}>
+                                PUE - Pago en una sola exhibición (Contado)
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Forma de Pago SAT <span class="text-danger">*</span></label>
+                        <select name="forma_pago" class="form-select" id="selectFormaPago">
+                            <option value="99" {% if pedido.forma_pago == '99' or pedido.cliente.dias_credito > 0 %}selected{% endif %}>
+                                99 - Por definir (Obligatorio para PPD)
+                            </option>
+                            <option value="03" {% if pedido.forma_pago == '03' %}selected{% endif %}>
+                                03 - Transferencia electrónica de fondos
+                            </option>
+                            <option value="01" {% if pedido.forma_pago == '01' %}selected{% endif %}>
+                                01 - Efectivo
+                            </option>
+                            <option value="02" {% if pedido.forma_pago == '02' %}selected{% endif %}>
+                                02 - Cheque nominativo
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Uso de CFDI (Receptor) <span class="text-danger">*</span></label>
+                        <select name="uso_cfdi" class="form-select">
+                            <option value="G01" {% if pedido.uso_cfdi == 'G01' or pedido.cliente.uso_cfdi == 'G01' %}selected{% endif %}>
+                                G01 - Adquisición de mercancías
+                            </option>
+                            <option value="G03" {% if pedido.uso_cfdi == 'G03' or pedido.cliente.uso_cfdi == 'G03' %}selected{% endif %}>
+                                G03 - Gastos en general
+                            </option>
+                            <option value="S01" {% if pedido.uso_cfdi == 'S01' %}selected{% endif %}>
+                                S01 - Sin efectos fiscales
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Notas u Observaciones en Factura</label>
+                        <textarea name="notas" class="form-control" rows="2" placeholder="Instrucciones fiscales o notas adicionales...">{{ pedido.observaciones }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-shield-check me-1"></i>Timbrar y Emitir CFDI 4.0
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function actualizarFormaPagoSegunMetodo(metodo) {
+    const selectForma = document.getElementById('selectFormaPago');
+    if (metodo === 'PPD') {
+        selectForma.value = '99';
+    } else if (selectForma.value === '99') {
+        selectForma.value = '03';
+    }
+}
+</script>

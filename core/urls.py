@@ -27,8 +27,11 @@ urlpatterns = [
     path('compras/', include('compras.urls')),
     # Módulo de Producción y Manufactura
     path('produccion/', include('produccion.urls')),
+    # Módulo de Ventas y Facturación
+    path('ventas/', include('ventas.urls')),
 ]
 
-# ESTA LÍNEA ES OBLIGATORIA PARA QUE EL SERVIDOR ENCUENTRE LAS IMÁGENES
+# ESTA LÍNEA ES OBLIGATORIA PARA QUE EL SERVIDOR ENCUENTRE LAS IMÁGENES Y ARCHIVOS GENERADOS
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

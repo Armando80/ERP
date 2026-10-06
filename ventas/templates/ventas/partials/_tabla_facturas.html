@@ -1,0 +1,136 @@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Serie / Folio</th>
+                        <th>Tipo / Folio Fiscal (UUID)</th>
+                        <th>Cliente Receptor</th>
+                        <th>Emisión / Timbrado</th>
+                        <th>Método / Forma</th>
+                        <th class="text-end">Total Facturado</th>
+                        <th class="text-end">Saldo Insoluto</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="text-secondary small">
+                    {% for fac in facturas %}
+                    <tr class="{% if fac.estado == 'CANCELADA' %}table-light opacity-50{% endif %}">
+                        <td class="ps-4">
+                            <a href="{% url 'ventas:factura_detalle' fac.id %}" class="fw-bold text-dark text-decoration-none">
+                                {{ fac.folio_completo }}
+                            </a>
+                            {% if fac.pedido %}
+                                <small class="text-muted d-block font-monospace">Ped: {{ fac.pedido.folio }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if fac.tipo_comprobante == 'I' %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace">ING (I)</span>
+                                {% elif fac.tipo_comprobante == 'P' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 font-monospace">PAGO (P)</span>
+                                {% else %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 font-monospace">EGR (E)</span>
+                                {% endif %}
+                            </div>
+                            {% if fac.uuid %}
+                                <span class="text-muted font-monospace d-block" style="font-size: 0.70rem;" title="{{ fac.uuid }}">
+                                    {{ fac.uuid|stringformat:"s"|slice:":18" }}...
+                                </span>
+                            {% else %}
+                                <span class="text-muted small">Sin timbrar</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ fac.cliente.razon_social }}</div>
+                            <small class="text-muted font-monospace">{{ fac.cliente.rfc }}</small>
+                        </td>
+                        <td>
+                            <div class="text-dark">{{ fac.fecha_emision|date:"d M Y H:i" }}</div>
+                            {% if fac.fecha_timbrado %}
+                                <small class="text-success"><i class="bi bi-patch-check-fill me-1"></i>SAT: {{ fac.fecha_timbrado|date:"d/M H:i" }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if fac.tipo_comprobante == 'I' %}
+                                <span class="badge bg-light text-dark border">{{ fac.metodo_pago }}</span>
+                                <small class="text-muted d-block font-monospace">FP: {{ fac.forma_pago }}</small>
+                            {% elif fac.tipo_comprobante == 'P' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">REP 2.0</span>
+                                <small class="text-muted d-block font-monospace">FP: {{ fac.forma_pago }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if fac.tipo_comprobante == 'I' %}
+                                <div class="fw-bold text-dark">${{ fac.total|floatformat:2 }}</div>
+                                <small class="text-muted font-monospace">{{ fac.moneda.codigo }}</small>
+                            {% else %}
+                                <div class="text-muted font-monospace">$0.00</div>
+                                <small class="text-muted">CFDI Pago</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if fac.tipo_comprobante == 'I' and fac.metodo_pago == 'PPD' %}
+                                {% if fac.saldo_insoluto > 0 %}
+                                    <span class="fw-bold text-danger">${{ fac.saldo_insoluto|floatformat:2 }}</span>
+                                    <small class="text-muted d-block font-monospace">Pendiente</small>
+                                {% else %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Liquidada</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted font-monospace">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if fac.estado == 'TIMBRADA' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-shield-check me-1"></i>Vigente
+                                </span>
+                            {% elif fac.estado == 'CANCELADA' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-x-circle me-1"></i>Cancelada
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                                    Borrador
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'ventas:factura_detalle' fac.id %}" class="btn btn-outline-secondary" title="Ver Expediente Fiscal">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'ventas:factura_pdf' fac.id %}" target="_blank" class="btn btn-outline-danger" title="Descargar PDF Oficial Decorlata">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                                </a>
+                                <a href="{% url 'ventas:factura_xml' fac.id %}" class="btn btn-outline-primary" title="Descargar XML CFDI 4.0">
+                                    <i class="bi bi-filetype-xml"></i>
+                                </a>
+                                {% if fac.tipo_comprobante == 'I' and fac.metodo_pago == 'PPD' and fac.saldo_insoluto > 0 %}
+                                    <a href="{% url 'ventas:factura_pago' fac.id %}" class="btn btn-outline-success" title="Registrar Pago / Emitir REP">
+                                        <i class="bi bi-cash-coin"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-receipt display-6 d-block mb-3 opacity-50"></i>
+                                <h6 class="fw-semibold">No se encontraron facturas ni comprobantes fiscales</h6>
+                                <p class="small mb-0">Emite facturas fiscales a partir de pedidos de venta surtidos.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

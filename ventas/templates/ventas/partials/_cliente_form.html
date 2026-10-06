@@ -1,0 +1,150 @@
+<form hx-post="{% if cliente %}{% url 'ventas:cliente_editar' cliente.id %}{% else %}{% url 'ventas:cliente_crear' %}{% endif %}"
+      hx-target="#offcanvas-cliente-content">
+    {% csrf_token %}
+
+    <!-- Errores Generales -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger small py-2 mb-3">
+            <ul class="mb-0 ps-3">
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <!-- SECCIÓN 1: IDENTIFICACIÓN FISCAL (SAT CFDI 4.0) -->
+    <div class="card border border-primary border-opacity-25 bg-light bg-opacity-50 p-3 mb-3">
+        <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-shield-check text-primary me-2"></i>
+            <h6 class="fw-bold mb-0 text-dark small text-uppercase">Datos Fiscales SAT (CFDI 4.0)</h6>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">RFC del Cliente *</label>
+            {{ form.rfc }}
+            {% if form.rfc.errors %}
+                <div class="text-danger small mt-1">{{ form.rfc.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted" style="font-size: 0.75rem;">12 caracteres (Personas Morales) o 13 (Físicas).</small>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Nombre o Razón Social (Exacto SAT) *</label>
+            {{ form.razon_social }}
+            {% if form.razon_social.errors %}
+                <div class="text-danger small mt-1">{{ form.razon_social.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted" style="font-size: 0.75rem;">Tal como aparece en la Constancia de Situación Fiscal.</small>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Régimen Fiscal (SAT) *</label>
+            {{ form.regimen_fiscal }}
+            {% if form.regimen_fiscal.errors %}
+                <div class="text-danger small mt-1">{{ form.regimen_fiscal.errors.0 }}</div>
+            {% endif %}
+        </div>
+
+        <div class="row g-2 mb-1">
+            <div class="col-5">
+                <label class="form-label small fw-semibold text-secondary mb-1">C. Postal Fiscal *</label>
+                {{ form.codigo_postal }}
+                {% if form.codigo_postal.errors %}
+                    <div class="text-danger small mt-1">{{ form.codigo_postal.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-7">
+                <label class="form-label small fw-semibold text-secondary mb-1">Uso de CFDI Habitual *</label>
+                {{ form.uso_cfdi }}
+                {% if form.uso_cfdi.errors %}
+                    <div class="text-danger small mt-1">{{ form.uso_cfdi.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 2: INFORMACIÓN COMERCIAL Y CONTACTO -->
+    <div class="card border border-secondary border-opacity-25 p-3 mb-3">
+        <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-building text-secondary me-2"></i>
+            <h6 class="fw-bold mb-0 text-dark small text-uppercase">Información Comercial y Contacto</h6>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Nombre Comercial / Marca</label>
+            {{ form.nombre_comercial }}
+            {% if form.nombre_comercial.errors %}
+                <div class="text-danger small mt-1">{{ form.nombre_comercial.errors.0 }}</div>
+            {% endif %}
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Correo para Envío de Facturas *</label>
+            {{ form.correo }}
+            {% if form.correo.errors %}
+                <div class="text-danger small mt-1">{{ form.correo.errors.0 }}</div>
+            {% endif %}
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Teléfono de Contacto</label>
+            {{ form.telefono }}
+            {% if form.telefono.errors %}
+                <div class="text-danger small mt-1">{{ form.telefono.errors.0 }}</div>
+            {% endif %}
+        </div>
+
+        <div class="mb-1">
+            <label class="form-label small fw-semibold text-secondary mb-1">Dirección / Domicilio</label>
+            {{ form.direccion }}
+            {% if form.direccion.errors %}
+                <div class="text-danger small mt-1">{{ form.direccion.errors.0 }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SECCIÓN 3: CRÉDITO Y COBRANZA -->
+    <div class="card border border-secondary border-opacity-25 p-3 mb-3">
+        <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-credit-card-2-front text-info me-2"></i>
+            <h6 class="fw-bold mb-0 text-dark small text-uppercase">Condiciones de Crédito</h6>
+        </div>
+
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <label class="form-label small fw-semibold text-secondary mb-1">Días de Crédito</label>
+                {{ form.dias_credito }}
+                {% if form.dias_credito.errors %}
+                    <div class="text-danger small mt-1">{{ form.dias_credito.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted" style="font-size: 0.75rem;">0 = Contado</small>
+            </div>
+            <div class="col-6">
+                <label class="form-label small fw-semibold text-secondary mb-1">Límite Crédito (MXN)</label>
+                {{ form.limite_credito }}
+                {% if form.limite_credito.errors %}
+                    <div class="text-danger small mt-1">{{ form.limite_credito.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Notas u Observaciones</label>
+            {{ form.notas }}
+        </div>
+
+        <div class="form-check form-switch mt-2">
+            {{ form.activo }}
+            <label class="form-check-label small fw-semibold" for="{{ form.activo.id_for_label }}">
+                Cliente Habilitado / Activo
+            </label>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2 mt-4">
+        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm">
+            <i class="bi bi-save me-2"></i>Guardar Expediente de Cliente
+        </button>
+    </div>
+</form>
