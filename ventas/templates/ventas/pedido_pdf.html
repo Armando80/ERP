@@ -305,12 +305,10 @@
                             <em>{{ pedido.cliente.nombre_comercial }}</em><br>
                         {% endif %}
                         <strong>RFC:</strong> <span class="font-mono">{{ pedido.cliente.rfc }}</span><br>
-                        <strong>Contacto:</strong> {{ pedido.cliente.contacto_principal|default:"Atención Comercial" }} | 
+                        <strong>At'n:</strong> {{ pedido.cliente.nombre_contacto|default:"Atención Comercial" }} | 
                         <strong>Tel:</strong> {{ pedido.cliente.telefono|default:"N/A" }}<br>
-                        <strong>Email:</strong> {{ pedido.cliente.correo_pedidos|default:pedido.cliente.correo|default:"N/A" }}<br>
-                        <strong>Dirección Fiscal / Entrega:</strong> {{ pedido.cliente.direccion_calle }} {{ pedido.cliente.numero_exterior }}
-                        {% if pedido.cliente.colonia %}, Col. {{ pedido.cliente.colonia }}{% endif %}
-                        {% if pedido.cliente.ciudad %}, {{ pedido.cliente.ciudad }}{% endif %}, C.P. {{ pedido.cliente.codigo_postal }}.
+                        <strong>Email:</strong> {{ pedido.cliente.correo|default:"N/A" }}<br>
+                        <strong>Dirección Fiscal / Entrega:</strong> {{ pedido.cliente.direccion|default:"No registrada" }}, C.P. {{ pedido.cliente.codigo_postal }}.
                     </p>
                 </div>
             </td>

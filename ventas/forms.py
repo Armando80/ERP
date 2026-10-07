@@ -11,6 +11,7 @@ class ClienteForm(forms.ModelForm):
             'regimen_fiscal',
             'codigo_postal',
             'uso_cfdi',
+            'nombre_contacto',
             'correo',
             'telefono',
             'direccion',
@@ -43,6 +44,11 @@ class ClienteForm(forms.ModelForm):
             }),
             'uso_cfdi': forms.Select(attrs={
                 'class': 'form-select'
+            }),
+            'nombre_contacto': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej. Ing. Laura Martínez – Compras',
+                'maxlength': '150'
             }),
             'correo': forms.EmailInput(attrs={
                 'class': 'form-control',
@@ -89,6 +95,13 @@ class ClienteForm(forms.ModelForm):
         if razon:
             return razon.upper().strip()
         return razon
+
+    def clean_nombre_contacto(self):
+        # Normaliza espacios; un valor vacío se guarda como NULL (campo opcional)
+        contacto = self.cleaned_data.get('nombre_contacto')
+        if contacto:
+            contacto = ' '.join(contacto.split())
+        return contacto or None
 
 
 from .models import PedidoVenta_Maestro, PedidoVenta_Detalle

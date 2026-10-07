@@ -28,13 +28,16 @@
                     <small class="text-muted d-block mt-1">Uso CFDI: {{ cli.uso_cfdi }}</small>
                 </td>
                 <td>
+                    {% if cli.nombre_contacto %}
+                        <div class="fw-semibold text-dark"><i class="bi bi-person me-1 text-muted"></i>{{ cli.nombre_contacto }}</div>
+                    {% endif %}
                     {% if cli.correo %}
                         <div class="text-dark"><i class="bi bi-envelope me-1 text-muted"></i>{{ cli.correo }}</div>
                     {% endif %}
                     {% if cli.telefono %}
                         <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ cli.telefono }}</small>
                     {% endif %}
-                    {% if not cli.correo and not cli.telefono %}
+                    {% if not cli.nombre_contacto and not cli.correo and not cli.telefono %}
                         <span class="text-muted small">- Sin contacto -</span>
                     {% endif %}
                 </td>

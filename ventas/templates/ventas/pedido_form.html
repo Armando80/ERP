@@ -73,11 +73,24 @@
                             <option value="{{ c.id }}"
                                     data-dias="{{ c.dias_credito }}"
                                     data-limite="{{ c.limite_credito }}"
-                                    data-rfc="{{ c.rfc }}">
+                                    data-rfc="{{ c.rfc }}"
+                                    data-contacto="{{ c.nombre_contacto|default:'' }}"
+                                    data-correo="{{ c.correo|default:'' }}"
+                                    data-telefono="{{ c.telefono|default:'' }}">
                                 {{ c.razon_social }} ({{ c.rfc }})
                             </option>
                         {% endfor %}
                     </select>
+                    <!-- Ficha rápida del contacto actual del cliente (se llena en cliente con JS) -->
+                    <div id="ficha-contacto-cliente" class="small text-secondary mt-2 d-none">
+                        <div><i class="bi bi-person me-1"></i><span id="ficha-contacto">-</span></div>
+                        <div>
+                            <i class="bi bi-envelope me-1"></i><span id="ficha-correo">-</span>
+                            <span class="mx-1">|</span>
+                            <i class="bi bi-telephone me-1"></i><span id="ficha-telefono">-</span>
+                        </div>
+                        <div><i class="bi bi-credit-card me-1"></i><span id="ficha-credito">-</span></div>
+                    </div>
                 </div>
 
                 <!-- Bodega de Despacho -->
@@ -357,12 +370,28 @@
     function actualizarDatosCliente() {
         const selectCli = document.getElementById('cliente_id');
         const opt = selectCli.options[selectCli.selectedIndex];
-        if (!opt || !opt.value) return;
+        const ficha = document.getElementById('ficha-contacto-cliente');
+        if (!opt || !opt.value) {
+            if (ficha) ficha.classList.add('d-none');
+            return;
+        }
 
         const dias = parseInt(opt.getAttribute('data-dias')) || 0;
         const inputCond = document.getElementById('condiciones_pago');
         if (inputCond) {
             inputCond.value = dias > 0 ? `${dias} días de crédito` : 'Contado';
+        }
+
+        // Ficha rápida con el contacto actual del cliente
+        if (ficha) {
+            const limite = parseFloat((opt.getAttribute('data-limite') || '0').replace(',', '.')) || 0;
+            document.getElementById('ficha-contacto').textContent = opt.getAttribute('data-contacto') || 'Sin contacto registrado';
+            document.getElementById('ficha-correo').textContent = opt.getAttribute('data-correo') || 'Sin correo';
+            document.getElementById('ficha-telefono').textContent = opt.getAttribute('data-telefono') || 'Sin teléfono';
+            document.getElementById('ficha-credito').textContent =
+                (dias > 0 ? `${dias} días de crédito` : 'Contado') +
+                ` · Límite: $${limite.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})} MXN`;
+            ficha.classList.remove('d-none');
         }
     }
 

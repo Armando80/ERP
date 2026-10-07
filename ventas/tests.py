@@ -106,6 +106,7 @@ class ClienteViewsTestCase(TestCase):
             nombre_comercial='Aerosoles Decora',
             regimen_fiscal='601',
             codigo_postal='06000',
+            nombre_contacto='Rodrigo Salinas',
             correo='contacto@decora.com',
             telefono='5512345678',
             activo=True
@@ -205,6 +206,54 @@ class ClienteViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.cliente_activo.razon_social)
         self.assertContains(response, self.cliente_activo.rfc)
+
+    def test_crear_cliente_con_nombre_contacto(self):
+        """El contacto se guarda normalizado (espacios) desde el Offcanvas HTMX."""
+        payload = {
+            'rfc': 'CONT010203AB5',
+            'razon_social': 'LACAS Y RECUBRIMIENTOS SA DE CV',
+            'regimen_fiscal': '601',
+            'codigo_postal': '44100',
+            'uso_cfdi': 'G01',
+            'nombre_contacto': '  Ing.   Laura   Martínez ',
+            'correo': 'compras@lacas.com',
+            'dias_credito': 0,
+            'limite_credito': '0.00',
+            'activo': 'on'
+        }
+        response = self.client_http.post(reverse('ventas:cliente_crear'), payload)
+        self.assertEqual(response.headers.get('HX-Trigger'), 'clienteGuardado')
+        nuevo = Cliente.objects.get(rfc='CONT010203AB5')
+        self.assertEqual(nuevo.nombre_contacto, 'Ing. Laura Martínez')
+
+    def test_cliente_sin_contacto_es_valido(self):
+        """El contacto es opcional: si se omite se guarda como NULL."""
+        payload = {
+            'rfc': 'SINC010203AB6',
+            'razon_social': 'SIN CONTACTO SA DE CV',
+            'regimen_fiscal': '601',
+            'codigo_postal': '44100',
+            'uso_cfdi': 'G03',
+            'nombre_contacto': '   ',
+            'correo': 'x@sincontacto.com',
+            'dias_credito': 0,
+            'limite_credito': '0.00',
+        }
+        self.client_http.post(reverse('ventas:cliente_crear'), payload)
+        self.assertIsNone(Cliente.objects.get(rfc='SINC010203AB6').nombre_contacto)
+
+    def test_busqueda_por_nombre_contacto(self):
+        """El buscador HTMX encuentra clientes por el nombre de su contacto."""
+        response = self.client_http.get(reverse('ventas:clientes_catalogo') + '?q=Rodrigo', HTTP_HX_REQUEST='true')
+        self.assertContains(response, 'DEC010203AB1')
+        self.assertContains(response, 'Rodrigo Salinas')
+        self.assertNotContains(response, 'INAC990101XYZ')
+
+    def test_modal_detalle_muestra_contacto(self):
+        """La ficha del cliente incluye la persona de contacto."""
+        response = self.client_http.get(reverse('ventas:cliente_detalle_modal', args=[self.cliente_activo.id]))
+        self.assertContains(response, 'Persona de Contacto')
+        self.assertContains(response, 'Rodrigo Salinas')
 
     def test_toggle_activo_cliente(self):
         """Verifica la activación/desactivación rápida del cliente."""
@@ -484,6 +533,30 @@ class PedidoVentaViewsTestCase(TestCase):
         self.assertContains(response, self.cliente.razon_social)
         self.assertContains(response, self.producto.nombre)
         self.assertContains(response, '5800.00')
+
+    def test_detalle_pedido_muestra_contacto_actual(self):
+        """El expediente del cliente en el pedido muestra contacto, correo y dirección reales del modelo."""
+        self.cliente.nombre_contacto = 'Lic. Marta Garza'
+        self.cliente.direccion = 'Av. Constitución 500, Monterrey, NL'
+        self.cliente.save()
+        response = self.client_http.get(reverse('ventas:pedido_detalle', args=[self.pedido.id]))
+        self.assertContains(response, 'Lic. Marta Garza')
+        self.assertContains(response, 'mailto:pedidos@norte.com')
+        self.assertContains(response, 'Av. Constitución 500, Monterrey, NL')
+        self.assertNotContains(response, 'Sin correo')
+
+    def test_detalle_pedido_contacto_vacio(self):
+        """Sin contacto registrado se muestra el texto por defecto."""
+        response = self.client_http.get(reverse('ventas:pedido_detalle', args=[self.pedido.id]))
+        self.assertContains(response, 'No especificado')
+
+    def test_form_pedido_expone_contacto_en_selector(self):
+        """El selector de cliente lleva el contacto en data-* para la ficha rápida."""
+        self.cliente.nombre_contacto = 'Lic. Marta Garza'
+        self.cliente.save()
+        response = self.client_http.get(reverse('ventas:pedido_crear'))
+        self.assertContains(response, 'data-contacto="Lic. Marta Garza"')
+        self.assertContains(response, 'id="ficha-contacto-cliente"')
 
     def test_cambiar_estado_pedido(self):
         """Verifica la actualización de estado de un pedido."""

@@ -78,6 +78,13 @@ class Cliente(models.Model):
     )
 
     # Contacto y Operación Comercial
+    nombre_contacto = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Nombre del Contacto",
+        help_text="Persona responsable de compras / atención comercial del cliente"
+    )
     correo = models.EmailField(
         verbose_name="Correo para Facturación / Envío",
         help_text="Destinatario principal de facturas XML/PDF y cotizaciones"

@@ -57,6 +57,7 @@ def clientes_catalogo_view(request):
         clientes = clientes.filter(
             Q(razon_social__icontains=query) |
             Q(nombre_comercial__icontains=query) |
+            Q(nombre_contacto__icontains=query) |
             Q(rfc__icontains=query) |
             Q(correo__icontains=query) |
             Q(telefono__icontains=query)

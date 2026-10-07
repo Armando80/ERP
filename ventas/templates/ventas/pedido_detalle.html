@@ -204,12 +204,12 @@
                     </div>
                     <div class="col-sm-6">
                         <span class="text-muted d-block">Contacto Principal:</span>
-                        <strong class="text-dark">{{ pedido.cliente.contacto_principal|default:"No especificado" }}</strong>
+                        <strong class="text-dark">{{ pedido.cliente.nombre_contacto|default:"No especificado" }}</strong>
                     </div>
                     <div class="col-sm-6">
                         <span class="text-muted d-block">Correo Electrónico:</span>
-                        {% if pedido.cliente.correo_pedidos %}
-                            <a href="mailto:{{ pedido.cliente.correo_pedidos }}" class="text-decoration-none">{{ pedido.cliente.correo_pedidos }}</a>
+                        {% if pedido.cliente.correo %}
+                            <a href="mailto:{{ pedido.cliente.correo }}" class="text-decoration-none">{{ pedido.cliente.correo }}</a>
                         {% else %}
                             <span class="text-muted">Sin correo</span>
                         {% endif %}
@@ -221,10 +221,8 @@
                     <div class="col-12 mt-2 pt-2 border-top">
                         <span class="text-muted d-block">Dirección Fiscal / Entrega:</span>
                         <span class="text-dark">
-                            {{ pedido.cliente.direccion_calle }} {{ pedido.cliente.numero_exterior }}
-                            {% if pedido.cliente.colonia %}, Col. {{ pedido.cliente.colonia }}{% endif %}
-                            {% if pedido.cliente.ciudad %}, {{ pedido.cliente.ciudad }}{% endif %}
-                            {% if pedido.cliente.codigo_postal %}, C.P. {{ pedido.cliente.codigo_postal }}{% endif %}
+                            {{ pedido.cliente.direccion|default:"No registrada"|linebreaksbr }}
+                            {% if pedido.cliente.codigo_postal %}<br>C.P. {{ pedido.cliente.codigo_postal }}{% endif %}
                         </span>
                     </div>
                 </div>
