@@ -368,22 +368,39 @@ def explosion_materiales_bom(producto, cantidad, bodega_origen=None):
     }
 
 
+def obtener_bom_activo(producto):
+    """Devuelve la receta (BOM) activa del producto o None si no existe o está inactiva."""
+    try:
+        bom = producto.receta_bom
+    except ListaMaterialesBOM.DoesNotExist:
+        return None
+    return bom if bom and bom.activo else None
+
+
+def mensaje_sin_receta(producto):
+    """Mensaje estándar cuando un producto aún no tiene receta (BOM) activa."""
+    return (
+        f"Aún no se ha generado la receta (Lista de Materiales) activa para el producto "
+        f"{producto.sku} - {producto.nombre}. No es posible lanzar la Orden de Producción."
+    )
+
+
 def crear_orden_produccion(producto_id, cantidad, bodega_origen_id, bodega_destino_id, usuario, fecha_compromiso=None, observaciones=None, pedido_venta=None, pedido_detalle=None):
     """
     Crea una nueva Orden de Producción en estado PLANEADA.
-    Si el producto cuenta con una receta (BOM) activa, congela los insumos requeridos
-    escalados a la cantidad a fabricar en OrdenProduccion_Insumo.
+    Requiere que el producto cuente con una receta (BOM) activa; congela los insumos
+    requeridos escalados a la cantidad a fabricar en OrdenProduccion_Insumo.
     Inicializa automáticamente las 6 etapas secuenciales en la línea de ensamble.
     """
     with transaction.atomic():
         producto = Producto.objects.select_related('receta_bom').get(id=producto_id)
+        bom = obtener_bom_activo(producto)
+        if bom is None:
+            raise ValueError(mensaje_sin_receta(producto))
+
         bodega_origen = Bodega.objects.get(id=bodega_origen_id)
         bodega_destino = Bodega.objects.get(id=bodega_destino_id)
         cantidad_decimal = Decimal(str(cantidad))
-
-        bom = getattr(producto, 'receta_bom', None)
-        if bom and not bom.activo:
-            bom = None
 
         orden = OrdenProduccion.objects.create(
             folio=generar_folio_produccion(),

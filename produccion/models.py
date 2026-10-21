@@ -303,6 +303,10 @@ class OrdenProduccion(models.Model):
         verbose_name = "Orden de Producción"
         verbose_name_plural = "Órdenes de Producción"
         ordering = ['-fecha_inicio']
+        permissions = [
+            # Permiso exclusivo otorgado por el administrador (no se hereda con los permisos estándar del módulo)
+            ("lanzar_op_pedido", "Puede lanzar Órdenes de Producción desde Pedidos de Venta"),
+        ]
 
     def __str__(self):
         return f"OP {self.folio} - {self.producto_a_fabricar.sku} ({self.get_estado_display()})"

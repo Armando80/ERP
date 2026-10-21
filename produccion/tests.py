@@ -1,7 +1,7 @@
 # ERP Decorlata - produccion/tests.py
 from decimal import Decimal
 from django.test import TestCase, Client
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Permission, Group
 from django.urls import reverse
 
 from general.models import Moneda, TipoCambio
@@ -713,6 +713,8 @@ class ProduccionFase1TestCase(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(username='jefe_planta', password='password123')
+        # Permiso exclusivo para lanzar OPs desde pedidos (lo otorga el administrador)
+        self.user.user_permissions.add(Permission.objects.get(codename='lanzar_op_pedido', content_type__app_label='produccion'))
         self.client.login(username='jefe_planta', password='password123')
 
         self.moneda_mxn = Moneda.objects.create(codigo='MXN', nombre='Peso Mexicano', simbolo='$')
@@ -1021,3 +1023,116 @@ class ProduccionFase1TestCase(TestCase):
         self.assertEqual(resp_htmx.status_code, 200)
         self.assertContains(resp_htmx, 'Operador HTMX')
 
+
+
+class LanzarOPDesdePedidoTestCase(ProduccionFase1TestCase):
+    """
+    Botón 'Lanzar OP' desde el pedido en firme:
+    - Modal con cascarón estático (evita que la pantalla se congele).
+    - Permiso exclusivo 'produccion.lanzar_op_pedido' otorgado por el administrador.
+    - Bloqueo y alerta cuando el producto no tiene receta (BOM) activa.
+    """
+    def setUp(self):
+        super().setUp()
+        self.url_modal = reverse('produccion:crear_op_desde_pedido', kwargs={'detalle_id': self.partida.id})
+        self.url_pedido = reverse('ventas:pedido_detalle', args=[self.pedido.id])
+        self.payload = {
+            'cantidad': '2000.0000',
+            'bodega_origen_insumos': self.bodega_mp.id,
+            'bodega_destino_pt': self.bodega_pt.id,
+        }
+        # Usuario sin permiso (por ejemplo, del grupo Producción con todos los permisos estándar del módulo)
+        self.sin_permiso = User.objects.create_user(username='operador_sin_permiso', password='x')
+        grupo_prod = Group.objects.create(name='Produccion_Test')
+        grupo_prod.permissions.set(Permission.objects.filter(content_type__app_label='produccion').exclude(codename='lanzar_op_pedido'))
+        self.sin_permiso.groups.add(grupo_prod)
+
+    # --- Congelamiento de pantalla ---
+    def test_pedido_detalle_modal_con_cascaron_estatico(self):
+        """El .modal-dialog debe existir antes de la carga HTMX (causa del congelamiento)."""
+        resp = self.client.get(self.url_pedido)
+        html = resp.content.decode()
+        inicio = html.index('id="modalLanzarOP"')
+        self.assertIn('modal-dialog', html[inicio:inicio + 400])
+        self.assertIn('id="modal-lanzar-op-container"', html)
+
+    def test_parcial_no_duplica_modal_dialog(self):
+        """El parcial inyectado solo trae el contenido (no anida otro .modal-dialog)."""
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'class="modal-dialog')
+        self.assertContains(resp, 'Confirmar y Generar Orden de Producción')
+
+    # --- Permisos ---
+    def test_boton_activo_con_permiso(self):
+        resp = self.client.get(self.url_pedido)
+        self.assertContains(resp, f'hx-get="{self.url_modal}"')
+
+    def test_boton_inactivo_sin_permiso(self):
+        self.client.force_login(self.sin_permiso)
+        resp = self.client.get(self.url_pedido)
+        self.assertNotContains(resp, f'hx-get="{self.url_modal}"')
+        self.assertContains(resp, 'bi-lock-fill')
+        self.assertContains(resp, 'Solicítelo al administrador')
+
+    def test_modal_sin_permiso_responde_403(self):
+        self.client.force_login(self.sin_permiso)
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 403)
+        self.assertContains(resp, 'Acceso restringido', status_code=403)
+
+    def test_post_directo_sin_permiso_no_crea_op(self):
+        self.client.force_login(self.sin_permiso)
+        resp = self.client.post(self.url_modal, self.payload)
+        self.assertRedirects(resp, self.url_pedido, fetch_redirect_response=False)
+        self.assertFalse(OrdenProduccion.objects.filter(pedido_detalle=self.partida).exists())
+
+    def test_permiso_otorgado_por_grupo(self):
+        """El administrador puede otorgar el permiso a través de un grupo."""
+        grupo = Group.objects.create(name='Planeacion_OP')
+        grupo.permissions.add(Permission.objects.get(codename='lanzar_op_pedido'))
+        self.sin_permiso.groups.add(grupo)
+        self.client.force_login(self.sin_permiso)
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_superusuario_tiene_acceso(self):
+        admin = User.objects.create_superuser(username='admin_test', password='x', email='a@a.com')
+        self.client.force_login(admin)
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 200)
+
+    # --- Receta (BOM) obligatoria ---
+    def test_modal_alerta_sin_receta(self):
+        self.bom.delete()
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertContains(resp, 'Aún no se ha generado la receta')
+        self.assertNotContains(resp, 'Confirmar y Generar Orden de Producción')
+
+    def test_modal_alerta_receta_inactiva(self):
+        self.bom.activo = False
+        self.bom.save()
+        resp = self.client.get(self.url_modal, HTTP_HX_REQUEST='true')
+        self.assertContains(resp, 'Aún no se ha generado la receta')
+
+    def test_insignia_sin_receta_en_pedido(self):
+        self.bom.delete()
+        resp = self.client.get(self.url_pedido)
+        self.assertContains(resp, 'Sin receta (BOM)')
+
+    def test_post_directo_sin_receta_no_crea_op(self):
+        self.bom.delete()
+        resp = self.client.post(self.url_modal, self.payload)
+        self.assertRedirects(resp, self.url_pedido, fetch_redirect_response=False)
+        self.assertFalse(OrdenProduccion.objects.filter(pedido_detalle=self.partida).exists())
+
+    def test_op_manual_exige_receta(self):
+        """También al crear OPs a mano en el módulo de Producción (servicio)."""
+        self.bom.activo = False
+        self.bom.save()
+        with self.assertRaisesMessage(ValueError, 'Aún no se ha generado la receta'):
+            crear_orden_produccion(
+                producto_id=self.bote_aerosol.id, cantidad=Decimal('100'),
+                bodega_origen_id=self.bodega_mp.id, bodega_destino_id=self.bodega_pt.id,
+                usuario=self.user
+            )

@@ -82,7 +82,7 @@ def verificar_disponibilidad_stock(pedido):
     hay_stock_fisico_completo = True
     hay_disponible_completo = True
 
-    detalles = pedido.detalles.select_related('producto', 'producto__unidad_medida').prefetch_related('ordenes_produccion').all()
+    detalles = pedido.detalles.select_related('producto', 'producto__unidad_medida', 'producto__receta_bom').prefetch_related('ordenes_produccion').all()
     for d in detalles:
         stock = Stock.objects.filter(producto=d.producto, bodega=pedido.bodega_despacho).first()
         stock_fisico = stock.cantidad if stock else Decimal('0.000000')

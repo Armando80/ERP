@@ -577,8 +577,11 @@ def crear_op_desde_pedido_view(request, detalle_id):
     """
     Vista/Modal para lanzar una Orden de Producción ligada a una partida de Pedido de Venta en firme.
     Permite verificar la explosión de materiales y stock antes de confirmar.
+    Restringida al permiso exclusivo 'produccion.lanzar_op_pedido' (otorgado por el administrador).
     """
     from ventas.models import PedidoVenta_Detalle
+
+    es_htmx = bool(request.headers.get('HX-Request'))
 
     detalle = get_object_or_404(
         PedidoVenta_Detalle.objects.select_related(
@@ -587,6 +590,20 @@ def crear_op_desde_pedido_view(request, detalle_id):
         ),
         pk=detalle_id
     )
+
+    # Control de acceso: permiso exclusivo (superusuarios lo tienen implícitamente)
+    if not request.user.has_perm('produccion.lanzar_op_pedido'):
+        mensaje = "No cuenta con permiso para lanzar Órdenes de Producción. Solicítelo al administrador."
+        if es_htmx:
+            return HttpResponse(
+                "<div class='modal-header bg-danger text-white'>"
+                "<h5 class='modal-title fw-bold'><i class='bi bi-shield-lock me-2'></i>Acceso restringido</h5>"
+                "<button type='button' class='btn-close btn-close-white' data-bs-dismiss='modal'></button></div>"
+                f"<div class='modal-body'><div class='alert alert-danger mb-0'>{mensaje}</div></div>",
+                status=403
+            )
+        messages.error(request, mensaje)
+        return redirect('ventas:pedido_detalle', pk=detalle.pedido_id)
 
     bodegas = Bodega.objects.all().order_by('nombre')
     bodega_sugerida = Bodega.objects.filter(codigo__icontains='MP').first() or bodegas.first()
@@ -610,18 +627,20 @@ def crear_op_desde_pedido_view(request, detalle_id):
             )
             messages.success(request, f"¡Orden de Producción {orden.folio} generada exitosamente desde el Pedido {detalle.pedido.folio}!")
 
-            if request.headers.get('HX-Request'):
+            if es_htmx:
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse('produccion:detalle_orden', kwargs={'pk': orden.id})
                 return response
 
             return redirect('produccion:detalle_orden', pk=orden.id)
         except Exception as e:
-            messages.error(request, f"Error al generar Orden de Producción: {str(e)}")
-            if request.headers.get('HX-Request'):
+            if es_htmx:
                 return HttpResponse(f"<div class='alert alert-danger py-2 small'>{str(e)}</div>", status=400)
+            # Envío tradicional del formulario: regresar al pedido con el mensaje (evita mostrar el parcial suelto)
+            messages.error(request, f"Error al generar Orden de Producción: {str(e)}")
+            return redirect('ventas:pedido_detalle', pk=detalle.pedido_id)
 
-    # GET: Explosión de materiales previa para revisión
+    # GET: Explosión de materiales previa para revisión (si no hay receta activa, el parcial muestra la alerta)
     explosion = explosion_materiales_bom(
         detalle.producto,
         detalle.cantidad,
