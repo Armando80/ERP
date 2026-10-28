@@ -1,7 +1,9 @@
 <!-- ERP Decorlata - produccion/partials/_modal_crear_op_pedido.html -->
 <!-- Se inyecta vía HTMX dentro de #modal-lanzar-op-container (.modal-content estático en pedido_detalle.html).
      Por eso este parcial NO incluye .modal-dialog ni .modal-content. -->
-<form action="{% url 'produccion:crear_op_desde_pedido' detalle.id %}" method="POST">
+<!-- El <form> actúa como columna flex (min-height: 0) para respetar .modal-dialog-scrollable:
+     el cuerpo hace scroll y el pie con el botón de confirmar queda siempre visible. -->
+<form action="{% url 'produccion:crear_op_desde_pedido' detalle.id %}" method="POST" class="d-flex flex-column overflow-hidden" style="min-height: 0; max-height: 100%;">
     {% csrf_token %}
     <div class="modal-header bg-primary text-white">
         <h5 class="modal-title fw-bold">
