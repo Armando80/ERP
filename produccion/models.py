@@ -563,22 +563,26 @@ class EtapaProduccionOP(models.Model):
     """
     Control de Avance en Líneas de Ensamble y Estaciones de Fabricación.
     Rastrea el progreso secuencial de una orden de producción a través de las
-    estaciones industriales clave de la fábrica de Decorlata.
+    4 estaciones industriales de la fábrica de Decorlata:
+    1. Corte de Plantillas (Cuerpos)
+    2. Soldadura (Formado y soldado eléctrico)
+    3. Ensamble (Ensamble y engargolado)
+    4. Prueba_Empaque (Prueba de hermeticidad y Paletizado)
     """
-    CORTE_HOJA = 'CORTE_HOJA'
-    LITOGRAFIA = 'LITOGRAFIA'
     CORTE_CUERPO = 'CORTE_CUERPO'
     SOLDADURA = 'SOLDADURA'
     ENSAMBLE = 'ENSAMBLE'
     PRUEBA_EMPAQUE = 'PRUEBA_EMPAQUE'
 
+    # Códigos para compatibilidad histórica con registros previos si existieran
+    CORTE_HOJA = 'CORTE_HOJA'
+    LITOGRAFIA = 'LITOGRAFIA'
+
     ETAPAS_CHOICES = [
-        (CORTE_HOJA, '1. Cizallado Primario de Hojalata'),
-        (LITOGRAFIA, '2. Litografía y Barnizado'),
-        (CORTE_CUERPO, '3. Corte de Plantillas (Cuerpos)'),
-        (SOLDADURA, '4. Formado y Soldadura Eléctrica'),
-        (ENSAMBLE, '5. Línea de Ensamble y Engargolado'),
-        (PRUEBA_EMPAQUE, '6. Prueba de Hermeticidad y Paletizado'),
+        (CORTE_CUERPO, '1. Corte de Plantillas (Cuerpos)'),
+        (SOLDADURA, '2. Soldadura (Formado y soldado eléctrico)'),
+        (ENSAMBLE, '3. Ensamble (Ensamble y engargolado)'),
+        (PRUEBA_EMPAQUE, '4. Prueba_Empaque (Prueba de hermeticidad y Paletizado)'),
     ]
 
     ESTADO_PENDIENTE = 'PENDIENTE'

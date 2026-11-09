@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.db import transaction
 from django.db.models import Sum
 from decimal import Decimal
+from django.core.exceptions import ValidationError
 from .models import MovimientoInventario, Stock, Producto
 
 @receiver(post_save, sender=MovimientoInventario)
@@ -56,11 +57,13 @@ def aplicar_movimiento_kardex(sender, instance, created, **kwargs):
             # ESCENARIO 2: SALIDA (Ventas, Consumo)
             # ==========================================
             elif instance.tipo_movimiento == MovimientoInventario.SALIDA:
-                stock = Stock.objects.select_for_update().get(
+                stock = Stock.objects.select_for_update().filter(
                     producto=producto,
                     bodega=instance.bodega_origen
-                )
-                # Restamos del stock (La validación de no estar en negativo ya se hizo en models.py)
+                ).first()
+                # Restamos del stock (validación defensiva: objects.create() no ejecuta clean())
+                if not stock or stock.cantidad < instance.cantidad:
+                    raise ValidationError(f"Stock insuficiente de {producto} en {instance.bodega_origen}.")
                 stock.cantidad -= instance.cantidad
                 stock.save()
 

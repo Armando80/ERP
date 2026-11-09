@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
             name='EtapaProduccionOP',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('codigo_etapa', models.CharField(choices=[('CORTE_HOJA', '1. Cizallado Primario de Hojalata'), ('LITOGRAFIA', '2. Litografía y Barnizado'), ('CORTE_CUERPO', '3. Corte de Plantillas (Cuerpos)'), ('SOLDADURA', '4. Formado y Soldadura Eléctrica'), ('ENSAMBLE', '5. Línea de Ensamble y Engargolado'), ('PRUEBA_EMPAQUE', '6. Prueba de Hermeticidad y Paletizado')], max_length=25, verbose_name='Estación / Etapa Industrial')),
+                ('codigo_etapa', models.CharField(choices=[('CORTE_CUERPO', '1. Corte de Plantillas (Cuerpos)'), ('SOLDADURA', '2. Formado y Soldadura Eléctrica'), ('ENSAMBLE', '3. Línea de Ensamble y Engargolado'), ('PRUEBA_EMPAQUE', '4. Prueba de Hermeticidad y Paletizado')], max_length=25, verbose_name='Estación / Etapa Industrial')),
                 ('nombre_etapa', models.CharField(max_length=120, verbose_name='Nombre de la Estación')),
                 ('secuencia', models.PositiveIntegerField(default=1, verbose_name='Secuencia en Línea')),
                 ('estado', models.CharField(choices=[('PENDIENTE', 'Pendiente'), ('EN_PROCESO', 'En Proceso'), ('COMPLETADA', 'Completada')], default='PENDIENTE', max_length=15, verbose_name='Estado de la Estación')),

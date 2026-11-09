@@ -130,45 +130,70 @@ def generar_folio_produccion():
 
 def inicializar_etapas_ensamble_op(orden):
     """
-    Inicializa las 6 estaciones secuenciales industriales en la línea de ensamble para la OP:
-    1. Cizallado Primario de Hojalata
-    2. Litografía y Barnizado
-    3. Corte de Plantillas (Cuerpos)
-    4. Formado y Soldadura Eléctrica
-    5. Línea de Ensamble y Engargolado
-    6. Prueba de Hermeticidad y Paletizado
+    Inicializa las 4 estaciones secuenciales industriales en la línea de ensamble para la OP:
+    1. Corte de Plantillas (Cuerpos)
+    2. Soldadura (Formado y soldado eléctrico)
+    3. Ensamble (Ensamble y engargolado)
+    4. Prueba_Empaque (Prueba de hermeticidad y Paletizado)
     """
-    if orden.etapas_ensamble.exists():
-        return list(orden.etapas_ensamble.all())
-
-    etapas = []
     secuencia_config = [
-        (EtapaProduccionOP.CORTE_HOJA, '1. Cizallado Primario de Hojalata', 1),
-        (EtapaProduccionOP.LITOGRAFIA, '2. Litografía y Barnizado', 2),
-        (EtapaProduccionOP.CORTE_CUERPO, '3. Corte de Plantillas (Cuerpos)', 3),
-        (EtapaProduccionOP.SOLDADURA, '4. Formado y Soldadura Eléctrica', 4),
-        (EtapaProduccionOP.ENSAMBLE, '5. Línea de Ensamble y Engargolado', 5),
-        (EtapaProduccionOP.PRUEBA_EMPAQUE, '6. Prueba de Hermeticidad y Paletizado', 6),
+        (EtapaProduccionOP.CORTE_CUERPO, '1. Corte de Plantillas (Cuerpos)', 1),
+        (EtapaProduccionOP.SOLDADURA, '2. Soldadura (Formado y soldado eléctrico)', 2),
+        (EtapaProduccionOP.ENSAMBLE, '3. Ensamble (Ensamble y engargolado)', 3),
+        (EtapaProduccionOP.PRUEBA_EMPAQUE, '4. Prueba_Empaque (Prueba de hermeticidad y Paletizado)', 4),
     ]
 
-    for codigo, nombre, sec in secuencia_config:
-        cant_in = orden.cantidad_a_producir if sec == 1 else Decimal('0.0000')
-        etapa = EtapaProduccionOP.objects.create(
-            orden=orden,
-            codigo_etapa=codigo,
-            nombre_etapa=nombre,
-            secuencia=sec,
-            estado=EtapaProduccionOP.ESTADO_PENDIENTE,
-            cantidad_entrada=cant_in,
-            cantidad_buena=Decimal('0.0000'),
-            cantidad_scrap=Decimal('0.0000')
-        )
-        etapas.append(etapa)
+    etapas_existentes = list(orden.etapas_ensamble.all())
+    codigos_existentes = [e.codigo_etapa for e in etapas_existentes]
+    codigos_esperados = [c[0] for c in secuencia_config]
 
-    return etapas
+    # Si ya tiene exactamente las 4 etapas esperadas, retornamos
+    if codigos_existentes == codigos_esperados:
+        return etapas_existentes
+
+    # Si tiene etapas anteriores (p.ej. las 6 etapas previas), depuramos las obsoletas y resecuenciamos
+    if any(e.codigo_etapa in [EtapaProduccionOP.CORTE_HOJA, EtapaProduccionOP.LITOGRAFIA] for e in etapas_existentes):
+        orden.etapas_ensamble.filter(codigo_etapa__in=[EtapaProduccionOP.CORTE_HOJA, EtapaProduccionOP.LITOGRAFIA]).delete()
+        for codigo, nombre, sec in secuencia_config:
+            etapa, created = EtapaProduccionOP.objects.get_or_create(
+                orden=orden,
+                codigo_etapa=codigo,
+                defaults={
+                    'nombre_etapa': nombre,
+                    'secuencia': sec,
+                    'estado': EtapaProduccionOP.ESTADO_PENDIENTE,
+                    'cantidad_entrada': Decimal('0.0000'),
+                }
+            )
+            if not created and (etapa.secuencia != sec or etapa.nombre_etapa != nombre):
+                etapa.secuencia = sec
+                etapa.nombre_etapa = nombre
+                etapa.save(update_fields=['secuencia', 'nombre_etapa'])
+
+        return list(orden.etapas_ensamble.all().order_by('secuencia'))
+
+    # Si no tiene etapas creadas:
+    if not etapas_existentes:
+        etapas = []
+        for codigo, nombre, sec in secuencia_config:
+            cant_in = Decimal('0.0000')
+            etapa = EtapaProduccionOP.objects.create(
+                orden=orden,
+                codigo_etapa=codigo,
+                nombre_etapa=nombre,
+                secuencia=sec,
+                estado=EtapaProduccionOP.ESTADO_PENDIENTE,
+                cantidad_entrada=cant_in,
+                cantidad_buena=Decimal('0.0000'),
+                cantidad_scrap=Decimal('0.0000')
+            )
+            etapas.append(etapa)
+        return etapas
+
+    return list(orden.etapas_ensamble.all().order_by('secuencia'))
 
 
-def actualizar_avance_etapa_ensamble(etapa_id, cantidad_buena=None, cantidad_scrap=None, nuevo_estado=None, operador=None, notas=None, usuario=None):
+def actualizar_avance_etapa_ensamble(etapa_id, cantidad_buena=None, cantidad_scrap=None, nuevo_estado=None, operador=None, notas=None, usuario=None, cantidad_entrada=None):
     """
     Actualiza el avance de producción en una estación de la línea de ensamble:
     - Registra piezas conformes y scrap.
@@ -180,11 +205,21 @@ def actualizar_avance_etapa_ensamble(etapa_id, cantidad_buena=None, cantidad_scr
         etapa = EtapaProduccionOP.objects.select_for_update().get(id=etapa_id)
         orden = etapa.orden
 
+        if cantidad_entrada is not None:
+            cant_in = Decimal(str(cantidad_entrada))
+            if cant_in < Decimal('0'):
+                raise ValueError("La cantidad de entrada no puede ser negativa.")
+            etapa.cantidad_entrada = cant_in
+
         if cantidad_buena is not None:
             cant_b = Decimal(str(cantidad_buena))
             if cant_b < Decimal('0'):
                 raise ValueError("La cantidad buena no puede ser negativa.")
             etapa.cantidad_buena = cant_b
+            # Si en la primera estación no se capturó entrada explícita pero hay buenas/scrap, auto-actualizar entrada
+            if cantidad_entrada is None and etapa.secuencia == 1 and etapa.cantidad_entrada == Decimal('0'):
+                cant_s = Decimal(str(cantidad_scrap)) if cantidad_scrap is not None else etapa.cantidad_scrap
+                etapa.cantidad_entrada = cant_b + (cant_s or Decimal('0'))
 
         if cantidad_scrap is not None:
             cant_s = Decimal(str(cantidad_scrap))
@@ -753,6 +788,22 @@ def autorizar_entrega_parcial(entrega_id, usuario_almacen, notas_almacen=None):
             moneda_mxn = Moneda.objects.create(codigo='MXN', nombre='Peso Mexicano', simbolo='$')
 
         costo_total_insumos = Decimal('0.000000')
+
+        # 0. Pre-validar existencias de TODOS los insumos en la bodega origen
+        #    (objects.create() no ejecuta MovimientoInventario.clean()).
+        faltantes = []
+        for item in entrega.insumos_detalle.select_related('insumo'):
+            disponible = Stock.objects.filter(
+                producto=item.insumo,
+                bodega=orden.bodega_origen_insumos
+            ).values_list('cantidad', flat=True).first() or Decimal('0')
+            if disponible < item.cantidad_consumida:
+                faltantes.append(f"{item.insumo}: requiere {item.cantidad_consumida}, disponible {disponible}")
+        if faltantes:
+            raise ValueError(
+                f"Stock insuficiente en {orden.bodega_origen_insumos} para autorizar la entrega "
+                f"{entrega.folio_entrega}. " + "; ".join(faltantes)
+            )
 
         # 1. Procesar salidas de insumos en Kardex
         for item in entrega.insumos_detalle.select_related('insumo'):

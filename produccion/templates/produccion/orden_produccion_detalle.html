@@ -187,13 +187,13 @@
     </div>
 </div>
 
-<!-- Tablero de Avance en Línea de Ensamble (6 Estaciones Industriales) -->
+<!-- Tablero de Avance en Línea de Ensamble (4 Estaciones Industriales) -->
 {% include 'produccion/partials/_etapas_linea_timeline.html' %}
 
 <!-- Explosión de Materiales BOM (Hojalata, Materia Prima, Componentes) -->
 {% include 'produccion/partials/_explosion_materiales_bloque.html' %}
 
-<!-- Tabla Detalle de Insumos Congelados de la Orden -->
+<!-- Tabla Detalle de Insumos Congelados de la Orden
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
         <div>
@@ -265,7 +265,7 @@
             </table>
         </div>
     </div>
-</div>
+</div> -->
 
 <!-- Modal para Finalizar Producción -->
 {% if orden.estado == 'PRO' or orden.estado == 'PLA' %}

@@ -295,9 +295,8 @@ def detalle_orden_produccion_view(request, pk):
         pk=pk
     )
 
-    # Garantizar que las 6 etapas estén inicializadas
-    if not orden.etapas_ensamble.exists():
-        inicializar_etapas_ensamble_op(orden)
+    # Garantizar que las 4 etapas estén inicializadas
+    inicializar_etapas_ensamble_op(orden)
 
     etapas = orden.etapas_ensamble.all()
 
@@ -396,14 +395,18 @@ def descargar_hoja_viajero_pdf_view(request, pk):
             'bom'
         ).prefetch_related(
             'insumos_detalle__insumo',
-            'insumos_detalle__insumo__unidad_medida'
+            'insumos_detalle__insumo__unidad_medida',
+            'etapas_ensamble'
         ),
         pk=pk
     )
 
+    inicializar_etapas_ensamble_op(orden)
+
     context = {
         'orden': orden,
         'detalles': orden.insumos_detalle.all(),
+        'etapas': orden.etapas_ensamble.all(),
         'fecha_impresion': timezone.now()
     }
 
@@ -522,6 +525,7 @@ def actualizar_avance_etapa_view(request, pk):
     orden = etapa.orden
 
     if request.method == 'POST':
+        cantidad_entrada = request.POST.get('cantidad_entrada')
         cantidad_buena = request.POST.get('cantidad_buena')
         cantidad_scrap = request.POST.get('cantidad_scrap')
         nuevo_estado = request.POST.get('nuevo_estado')
@@ -531,6 +535,7 @@ def actualizar_avance_etapa_view(request, pk):
         try:
             actualizar_avance_etapa_ensamble(
                 etapa_id=etapa.id,
+                cantidad_entrada=cantidad_entrada if cantidad_entrada != '' and cantidad_entrada is not None else None,
                 cantidad_buena=cantidad_buena if cantidad_buena != '' and cantidad_buena is not None else None,
                 cantidad_scrap=cantidad_scrap if cantidad_scrap != '' and cantidad_scrap is not None else None,
                 nuevo_estado=nuevo_estado if nuevo_estado else None,

@@ -707,7 +707,7 @@ class ProduccionFase1TestCase(TestCase):
     Pruebas unitarias e integrales para la Fase 1 del Módulo de Producción:
     1. Órdenes de Producción ligadas a Pedidos de Venta en firme.
     2. Explosión de materiales clasificada (Hojalata, MP química, Componentes).
-    3. Inicialización y control de avance en líneas de ensamble (6 estaciones industriales).
+    3. Inicialización y control de avance en líneas de ensamble (4 estaciones industriales).
     4. Vistas y endpoints HTMX.
     """
     def setUp(self):
@@ -909,10 +909,14 @@ class ProduccionFase1TestCase(TestCase):
         self.assertGreater(explosion['totales']['costo_total_mxn'], Decimal('0'))
         self.assertGreater(explosion['totales']['costo_unitario_mxn'], Decimal('0'))
 
-    def test_inicializacion_y_avance_ensamble_6_estaciones(self):
+    def test_inicializacion_y_avance_ensamble_4_estaciones(self):
         """
-        Verifica que una OP inicialice sus 6 estaciones industriales y que
+        Verifica que una OP inicialice sus 4 estaciones industriales y que
         las piezas conformes se transfieran automáticamente a la siguiente estación.
+        1. Corte de Plantillas (Cuerpos)
+        2. Soldadura (Formado y soldado eléctrico)
+        3. Ensamble (Ensamble y engargolado)
+        4. Prueba_Empaque (Prueba de hermeticidad y Paletizado)
         """
         orden = crear_orden_produccion(
             producto_id=self.bote_aerosol.id,
@@ -923,63 +927,78 @@ class ProduccionFase1TestCase(TestCase):
         )
 
         etapas = list(orden.etapas_ensamble.all())
-        self.assertEqual(len(etapas), 6)
-        self.assertEqual(orden.etapas_total_count, 6)
+        self.assertEqual(len(etapas), 4)
+        self.assertEqual(orden.etapas_total_count, 4)
         self.assertEqual(orden.etapas_completadas_count, 0)
 
-        # Estación 1 arranca con la cantidad solicitada
+        # Estación 1: Corte de Plantillas (Cuerpos)
         etapa_1 = etapas[0]
-        self.assertEqual(etapa_1.codigo_etapa, EtapaProduccionOP.CORTE_HOJA)
-        self.assertEqual(etapa_1.cantidad_entrada, Decimal('1000.0000'))
+        self.assertEqual(etapa_1.codigo_etapa, EtapaProduccionOP.CORTE_CUERPO)
+        self.assertEqual(etapa_1.secuencia, 1)
+        self.assertEqual(etapa_1.cantidad_entrada, Decimal('0.0000'))
         self.assertEqual(etapa_1.estado, EtapaProduccionOP.ESTADO_PENDIENTE)
 
         # Avanzar Estación 1: 980 conformes, 20 scrap -> COMPLETADA
         etapa_1_up = actualizar_avance_etapa_ensamble(
             etapa_id=etapa_1.id,
+            cantidad_entrada=Decimal('1000.0000'),
             cantidad_buena=Decimal('980.0000'),
             cantidad_scrap=Decimal('20.0000'),
             nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
-            operador="Roberto Cizallador",
-            notas="Cizallado de bobinas T4 sin desajustes"
+            operador="Roberto Cortador",
+            notas="Corte de plantillas cuerpos sin desajustes"
         )
         self.assertEqual(etapa_1_up.estado, EtapaProduccionOP.ESTADO_COMPLETADA)
         self.assertIsNotNone(etapa_1_up.fecha_fin)
 
-        # Cascada: Estación 2 (Litografía) ahora debe tener cantidad_entrada = 980
+        # Cascada: Estación 2 (Soldadura) ahora debe tener cantidad_entrada = 980
         etapa_2 = orden.etapas_ensamble.get(secuencia=2)
-        self.assertEqual(etapa_2.codigo_etapa, EtapaProduccionOP.LITOGRAFIA)
+        self.assertEqual(etapa_2.codigo_etapa, EtapaProduccionOP.SOLDADURA)
         self.assertEqual(etapa_2.cantidad_entrada, Decimal('980.0000'))
 
         # Orden transicionó a EN_PROCESO
         orden.refresh_from_db()
         self.assertEqual(orden.estado, OrdenProduccion.EN_PROCESO)
 
-        # Avanzar Estaciones 2, 3, 4, 5 secuencialmente
-        for sec in [2, 3, 4, 5]:
-            et = orden.etapas_ensamble.get(secuencia=sec)
-            actualizar_avance_etapa_ensamble(
-                etapa_id=et.id,
-                cantidad_buena=Decimal('970.0000'),
-                cantidad_scrap=Decimal('10.0000'),
-                nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
-                operador="Líder Línea"
-            )
-
-        # Última Estación 6: Prueba de Hermeticidad y Paletizado
-        etapa_6 = orden.etapas_ensamble.get(secuencia=6)
-        self.assertEqual(etapa_6.codigo_etapa, EtapaProduccionOP.PRUEBA_EMPAQUE)
-        self.assertEqual(etapa_6.cantidad_entrada, Decimal('970.0000'))
-
+        # Avanzar Estación 2: Soldadura
         actualizar_avance_etapa_ensamble(
-            etapa_id=etapa_6.id,
+            etapa_id=etapa_2.id,
+            cantidad_buena=Decimal('975.0000'),
+            cantidad_scrap=Decimal('5.0000'),
+            nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
+            operador="Soldador Eléctrico"
+        )
+
+        # Cascada: Estación 3 (Ensamble) cantidad_entrada = 975
+        etapa_3 = orden.etapas_ensamble.get(secuencia=3)
+        self.assertEqual(etapa_3.codigo_etapa, EtapaProduccionOP.ENSAMBLE)
+        self.assertEqual(etapa_3.cantidad_entrada, Decimal('975.0000'))
+
+        # Avanzar Estación 3: Ensamble
+        actualizar_avance_etapa_ensamble(
+            etapa_id=etapa_3.id,
+            cantidad_buena=Decimal('970.0000'),
+            cantidad_scrap=Decimal('5.0000'),
+            nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
+            operador="Engargolador"
+        )
+
+        # Cascada: Estación 4 (Prueba_Empaque) cantidad_entrada = 970
+        etapa_4 = orden.etapas_ensamble.get(secuencia=4)
+        self.assertEqual(etapa_4.codigo_etapa, EtapaProduccionOP.PRUEBA_EMPAQUE)
+        self.assertEqual(etapa_4.cantidad_entrada, Decimal('970.0000'))
+
+        # Avanzar Estación 4: Prueba de Hermeticidad y Paletizado
+        actualizar_avance_etapa_ensamble(
+            etapa_id=etapa_4.id,
             cantidad_buena=Decimal('965.0000'),
             cantidad_scrap=Decimal('5.0000'),
             nuevo_estado=EtapaProduccionOP.ESTADO_COMPLETADA,
-            operador="Control de Calidad"
+            operador="Control de Calidad y Paletizado"
         )
 
         orden.refresh_from_db()
-        self.assertEqual(orden.etapas_completadas_count, 6)
+        self.assertEqual(orden.etapas_completadas_count, 4)
         self.assertEqual(orden.cantidad_producida, Decimal('965.0000'))
         self.assertGreater(orden.porcentaje_avance_ensamble, Decimal('90.0'))
 

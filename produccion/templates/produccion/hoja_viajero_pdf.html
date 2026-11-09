@@ -67,6 +67,38 @@
         .signatures td { width: 33.33%; padding: 10px; vertical-align: bottom; }
         .signature-line { border-top: 1px solid #64748b; width: 80%; margin: 0 auto; padding-top: 4px; font-weight: bold; font-size: 10px; color: #475569;}
         .signature-title { font-size: 9px; color: #94a3b8; }
+        /* Barra de Progreso y Estaciones */
+        .progress-box {
+            width: 100%;
+            background-color: #e2e8f0;
+            border-radius: 3px;
+            height: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #cbd5e1;
+        }
+        .progress-bar-fill {
+            background-color: #1e293b;
+            height: 10px;
+            border-radius: 2px;
+        }
+        .station-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .station-table th {
+            background-color: #334155;
+            color: white;
+            padding: 5px 6px;
+            text-align: left;
+            font-size: 9px;
+            text-transform: uppercase;
+        }
+        .station-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 5px 6px;
+            font-size: 9.5px;
+        }
     </style>
 </head>
 <body>
@@ -164,7 +196,84 @@
         </tbody>
     </table>
 
-    <!-- 5. FIRMAS DE CONTROL INDUSTRIAL -->
+    <!-- 5. CONTROL DE AVANCE EN LÍNEA DE ENSAMBLE (4 ESTACIONES) -->
+    <table style="width: 100%; border-bottom: 1px solid #1e293b; margin-top: 15px; margin-bottom: 6px; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 0; padding-bottom: 3px;">
+                <h3 style="font-size: 11px; margin: 0; text-transform: uppercase; color: #1e293b; font-weight: bold;">
+                    Control de Avance en Línea de Ensamble
+                </h3>
+            </td>
+            <td style="padding: 0; padding-bottom: 3px; text-align: right; font-size: 10px; color: #475569;">
+                Progreso General del Lote: <strong>{{ orden.porcentaje_avance_ensamble|floatformat:1 }}%</strong>
+                <span style="font-size: 9px; color: #64748b;">(Meta: {{ orden.cantidad_a_producir|floatformat:0 }} {{ orden.producto_a_fabricar.unidad_medida.codigo }})</span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Barra de Progreso General del Lote -->
+    <div class="progress-box">
+        <div class="progress-bar-fill" style="width: {{ orden.porcentaje_avance_ensamble|floatformat:1 }}%;"></div>
+    </div>
+
+    <!-- Tabla de Estaciones de Ensamble / Operaciones -->
+    <table class="station-table">
+        <thead>
+            <tr>
+                <th style="width: 4%; text-align: center;">#</th>
+                <th style="width: 36%;">Estación / Operación Industrial</th>
+                <th style="width: 12%; text-align: center;">Estado</th>
+                <th style="width: 11%; text-align: center;">Entrada</th>
+                <th style="width: 11%; text-align: center;">Conformes</th>
+                <th style="width: 10%; text-align: center;">Scrap / Merma</th>
+                <th style="width: 16%; text-align: center;">Operador / Firma</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for etapa in etapas %}
+            <tr>
+                <td class="text-center" style="font-weight: bold;">{{ etapa.secuencia }}</td>
+                <td>
+                    <strong>{{ etapa.nombre_etapa }}</strong>
+                    {% if etapa.notas %}
+                        <br><span style="font-size: 8px; color: #64748b;"><em>Obs: {{ etapa.notas }}</em></span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <span style="font-size: 8.5px; font-weight: bold; text-transform: uppercase;">
+                        {{ etapa.get_estado_display }}
+                    </span>
+                </td>
+                <td class="text-center font-monospace">
+                    {{ etapa.cantidad_entrada|floatformat:0 }}
+                </td>
+                <td class="text-center font-monospace" style="font-weight: bold;">
+                    {% if etapa.cantidad_buena > 0 %}
+                        {{ etapa.cantidad_buena|floatformat:0 }}
+                    {% else %}
+                        &nbsp;
+                    {% endif %}
+                </td>
+                <td class="text-center font-monospace" style="color: #dc2626;">
+                    {% if etapa.cantidad_scrap > 0 %}
+                        {{ etapa.cantidad_scrap|floatformat:0 }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td style="border: 1px dashed #cbd5e1; text-align: center; font-size: 8.5px; height: 16px;">
+                    {{ etapa.operador|default:"&nbsp;" }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center">No hay estaciones configuradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 6. FIRMAS DE CONTROL INDUSTRIAL -->
     <table class="signatures">
         <tr>
             <td>
